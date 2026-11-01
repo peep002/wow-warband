@@ -10,23 +10,26 @@
 --   Missions.SendHome(player)     teleport the commander and their bots to the hamlet
 --   Missions.PartyBots(player)    the bots in the commander's group
 --   Missions.OnChange(fn)         fn(player) whenever the board or the mission state changes
+--   Missions.OnFinish(fn)         fn(player, status) after a mission ends ("done" or "abandoned")
 --
 -- Use from other files:  local Missions = require("wb_missions")
 
 local Config  = require("wb_config")
 local Company = require("wb_company")
 local Log     = require("wb_log")
+local Roster  = require("wb_roster")
 
 local Missions = {}
 
 local CREATURE_EVENT_ON_DIED = 4
 local STATE_HAMLET, STATE_MISSION = 0, 1
 
-local active = {}         -- [commander guid] = { id =, key =, def =, finishing = bool }
-local changeHandlers = {}
+local active = {}         -- [commander guid] = { id =, key =, def =, heroes = { guid, ... }, finishing = bool }
+local changeHandlers, finishHandlers = {}, {}
 
 function Missions.OnChange(fn) changeHandlers[#changeHandlers + 1] = fn end
 local function Changed(player) for _, fn in ipairs(changeHandlers) do fn(player) end end
+function Missions.OnFinish(fn) finishHandlers[#finishHandlers + 1] = fn end
 
 function Missions.Offers(player)
     return Config.board
@@ -82,8 +85,17 @@ local function Finish(player, status)
         c.state = STATE_HAMLET
         Company.Save(player)
     end
+    -- Heroes who came home from a completed mission count it.
+    if status == "done" then
+        for _, hero in ipairs(Roster.PartyHeroes(player)) do
+            CharDBExecute("UPDATE `warband_heroes` SET `missions` = `missions` + 1 WHERE `guid` = " .. hero:GetGUIDLow())
+            local h = Roster.Get(player, hero:GetGUIDLow())
+            if h then h.missions = h.missions + 1 end
+        end
+    end
     Log.Event(guid, "mission_" .. status, m.key)
     Missions.SendHome(player)
+    for _, fn in ipairs(finishHandlers) do fn(player, status) end
     Changed(player)
 end
 
@@ -97,6 +109,14 @@ function Missions.Embark(player, key)
     if not offered or not def then return false, "That contract isn't on the board." end
     if player:IsInCombat() then return false, "You can't march out in the middle of a fight." end
     if player:IsDead() then return false, "You can't lead a march while dead." end
+    local heroes = Roster.PartyHeroes(player)
+    if #heroes < Config.heroes.min_party then
+        return false, string.format("Call at least %d hero%s from your roster first.", Config.heroes.min_party,
+            Config.heroes.min_party == 1 and "" or "es")
+    end
+    if #Missions.PartyBots(player) > #heroes then
+        return false, "Only your company's heroes can march. Send other bots away first (.playerbots bot remove NAME)."
+    end
 
     -- Synchronous, so the new row's id can be read straight back.
     CharDBQuery(string.format("INSERT INTO `warband_missions` (`company`, `mission_key`) VALUES (%d, '%s')", c.guid, key))
@@ -105,7 +125,7 @@ function Missions.Embark(player, key)
     active[c.guid] = { id = q and q:GetUInt32(0) or 0, key = key, def = def }
     c.state = STATE_MISSION
     Company.Save(player)
-    Log.Event(c.guid, "mission_start", string.format("%s bots=%d", key, #Missions.PartyBots(player)))
+    Log.Event(c.guid, "mission_start", string.format("%s heroes=%d", key, #heroes))
     TeleportParty(player, def.map, def.entrance)
     player:SendBroadcastMessage(string.format("|cffffd100[Warband]|r Contract: %s. Objective: %s.", def.name, def.objective))
     Changed(player)

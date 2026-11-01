@@ -44,3 +44,36 @@ Known gaps (not bugs yet): dying isn't handled (phase 5), no starter gear (phase
 missions (phase 4).
 
 **Result:** (waiting)
+
+## Test 3: the tavern and your heroes (phase 3)
+
+Since phase 3, embarking needs heroes from your roster: in test 2, skip the `.playerbots bot addclass`
+step and use your heroes instead (steps below). Start with a **new character** so the company is fresh.
+
+1. Open the window (minimap button) and click the **Tavern** tab.
+   - **Expect:** "Founding recruits: hire 4 for free" and 6 cards. Each card shows a class icon, the
+     name in class colour, "Tank" / "Healer" / "Damage", level, race, spec and class, a green **+** trait
+     and a red **-** trait (hover them for what they'll do), a one-line backstory, "Free", and a
+     **Hire** button. At least one tank and one healer are among them, and races of both factions.
+2. Hire 4 of them. Each disappears from the tavern; after the 4th, the other two leave.
+3. Click the **Roster** tab.
+   - **Expect:** "Roster: 4 of 4 heroes", your 4 heroes as cards, all "In the barracks", 0 missions.
+4. Click **Call to party** on two or three of them.
+   - **Expect:** each appears next to you within a few seconds (says hello), at level 10, wearing
+     gear, and joins your group, even a Horde hero with an Alliance commander or the other way round.
+     The card changes to "In your party" and the button to "Send to barracks".
+5. Send one back with **Send to barracks**: they disappear.
+6. Talk to **Maude Ashby** (west side of the village): the window opens on the Tavern tab.
+7. **Missions** tab: "Your party" lists your heroes. **Embark**, kill Rhahk'Zor (heroes fight with
+   you), and come home.
+   - **Expect:** the Roster shows "1 missions" for the heroes who went. The Tavern now has **4 new
+     recruits** with gold prices (your company starts with 150 gold; with a full roster of 4 the
+     Hire buttons are greyed out).
+8. Log out and back in: the heroes who were in your party come back by themselves.
+
+Typed backups (also work without the window): `.warband roster`, `.warband tavern`,
+`.warband hire NAME`, `.warband call NAME`, `.warband send NAME`.
+
+Tell me if the cards are hard to read, too cramped, or missing something you'd want to see.
+
+**Result:** (waiting)

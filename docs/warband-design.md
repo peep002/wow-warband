@@ -133,8 +133,11 @@ each mission; the rest rest, train, or recover.
 
 ### Recruitment
 
-- The tavern shows 3 recruits after each mission (5 at max tavern level). Unhired recruits leave
-  when the next mission ends.
+- The tavern shows **4 recruits** after each mission, more with each tavern upgrade **(decided
+  2026-11-01; the PDF had 3, up to 5)**. Unhired recruits leave when the next mission ends.
+- **Founding (decided 2026-11-01):** a new company's first tavern shows 6 recruits, always
+  including a tank and a healer, and the first 4 hires are free. After that the tavern works as
+  above.
 - Each recruit has a class and spec, a name and a one-line backstory, 2 traits (1 positive, 1
   negative), and a hire cost in gold.
 - Recruits arrive 4 levels below the roster's average level; tavern upgrades shrink the gap to 1.
@@ -319,7 +322,7 @@ world, so progress is something you can walk around and see.
 | Building | What it does | Upgrades (3 levels each) |
 |---|---|---|
 | Mission Board | Offers missions | More missions offered; reroll the board once per return; preview modifiers |
-| Tavern | Recruits; drinking relieves stress | More recruits; smaller level gap; three-trait and rare-spec recruits |
+| Tavern | Recruits; drinking relieves stress | More recruits (4 → 5 → 6 → 7); smaller level gap; three-trait and rare-spec recruits |
 | Barracks | Roster housing | Roster slots 4 → 6 → 8 → 10 |
 | Chapel | Prayer relieves stress | Cheaper relief; more heroes at once; removes religious afflictions |
 | Infirmary | Heals wounds, treats quirks, cures diseases | Cheaper treatment; lock good quirks; sells mark rerolls |

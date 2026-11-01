@@ -2,17 +2,20 @@
 Add "restart" to also restart the worldserver mid-mission (about 2 minutes more):
     python tools/wb_testbot.py run restart
 
-Each run makes a fresh commander on WBTESTBOT (old characters named "Wb..." are deleted first),
-so nothing of the owner's is touched.
+Each run makes a fresh commander on WBTESTBOT (old characters named "Wb..." are deleted first,
+which also frees their heroes), so nothing of the owner's is touched.
 
-Phase 2 checks:
   1. A new character becomes a commander: level 10, at Raven Hill, no hearthstone, class spells.
   2. Walking out of the hamlet sends you back.
-  3. Sergeant Marlow's menu offers the contract; Embark takes you and your bot into the Deadmines.
-  4. Leaving the dungeon on a mission puts you back at the entrance.
-  5. Killing the target boss completes the mission and brings everyone home.
-  6. Abandoning a mission brings everyone home.
-  7. (restart) A running mission survives a worldserver restart.
+  3. The founding tavern: 6 free recruits incl. a tank and a healer; hire 4 (Maude's menu and
+     .warband hire); call heroes to the party, they log in set up at level 10; send one away;
+     other bots can't march.
+  4. Sergeant Marlow's menu offers the contract; Embark takes you and your heroes into the Deadmines.
+  5. Leaving the dungeon on a mission puts you back at the entrance.
+  6. Killing the target boss completes the mission and brings everyone home; heroes count the
+     mission; a new batch of paid recruits arrives; a full roster can't hire.
+  7. Abandoning a mission brings everyone home.
+  8. (restart) A running mission and the party survive a worldserver restart.
 """
 import os
 import subprocess
@@ -22,11 +25,14 @@ import time
 import wb_testbot as T
 
 HUB_MAP, DEADMINES = 0, 36
-MARLOW = 9100000
+MARLOW, MAUDE = 9100000, 9100001
 RHAHKZOR_SPAWN = 79168          # Rhahk'Zor's spawn guid in the Deadmines (world DB creature table)
 FROST_NOVA = 122                # a Mage spell trained at level 10
 LAUNCHER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server-launcher", "ServerLauncher.exe")
+SERVER_LOG = r"C:\Claude\Projects\azerothcore-warband\build\bin\Release\Server.log"
 
+
+# Read-outs ------------------------------------------------------------------------------------
 
 def state(bot):
     return bot.probe("state")
@@ -39,49 +45,40 @@ def num(s, key, default=-1):
         return default
 
 
-def wait_state(bot, test, timeout=20, every=2):
-    """Probe until test(state) is true or time runs out; returns the last state."""
+def wait_state(bot, test, timeout=20, every=2, probe="state"):
+    """Probe until test(read-out) is true or time runs out; returns the last read-out."""
     end = time.time() + timeout
     while True:
-        s = state(bot)
+        s = bot.probe(probe)
         if test(s) or time.time() > end:
             return s
         time.sleep(every)
 
 
-def talk_to_marlow(bot):
-    npc = bot.probe("gonpc %d" % MARLOW)
-    if npc.get("gonpc", "none") == "none":
-        return None
-    # After the jump the server needs a moment to accept the bot's new spot; until then it
-    # thinks the bot is still too far away to talk and ignores the request. So: wait, retry.
-    for _ in range(3):
-        time.sleep(2.5)
-        menu = bot.open_menu(npc_guid=T.creature_guid(MARLOW, int(npc["low"])))
-        if menu:
-            return menu
-    return None
+def roster(bot):
+    """{name: dict(class, level, party, online, missions, status)} plus the raw read-out."""
+    s = bot.probe("roster")
+    heroes = {}
+    for part in s.get("list", "none").split(","):
+        f = part.split(":")
+        if len(f) == 7:
+            heroes[f[0]] = dict(cls=int(f[1]), level=int(f[2]), party=f[3] == "1", online=f[4] == "1",
+                                missions=int(f[5]), status=f[6])
+    return heroes, s
 
 
-def embark(bot, r, label):
-    menu = talk_to_marlow(bot)
-    r.check(f"{label}: Sergeant Marlow answers", menu is not None)
-    if not menu:
-        return False
-    asked = time.time()
-    picked = bot.pick(menu, r"Contract: Into the Deadmines")
-    r.check(f"{label}: the board offers Into the Deadmines", picked, " | ".join(t for _, t, _ in menu["options"]))
-    sub = bot.wait_menu(asked)
-    ok = sub is not None and bot.pick(sub, r"Embark now")
-    r.check(f"{label}: Embark is offered", ok)
-    s = wait_state(bot, lambda s: num(s, "map") == DEADMINES and s.get("mission") == "deadmines_short")
-    r.check(f"{label}: embarking puts you in the Deadmines on the mission",
-            num(s, "map") == DEADMINES and s.get("mission") == "deadmines_short" and num(s, "state") == 1,
-            f"map={s.get('map')} mission={s.get('mission')} state={s.get('state')}")
-    return num(s, "map") == DEADMINES
+def tavern(bot):
+    s = bot.probe("tavern")
+    recruits = []
+    for part in s.get("list", "none").split(","):
+        f = part.split(":")
+        if len(f) == 5:
+            recruits.append(dict(name=f[0], role=f[1], level=int(f[2]), cost=int(f[3]), founding=f[4] == "1"))
+    return recruits, s
 
 
-SERVER_LOG = r"C:\Claude\Projects\azerothcore-warband\build\bin\Release\Server.log"
+def at_home(s):
+    return num(s, "map") == HUB_MAP and 0 <= num(s, "hubdist") < 25
 
 
 def wait_for_ready(timeout):
@@ -101,9 +98,50 @@ def wait_for_ready(timeout):
     return False
 
 
-def at_home(s):
-    return num(s, "map") == HUB_MAP and 0 <= num(s, "hubdist") < 25
+# Actions --------------------------------------------------------------------------------------
 
+def talk_to(bot, entry):
+    npc = bot.probe("gonpc %d" % entry)
+    if npc.get("gonpc", "none") == "none":
+        return None
+    # After the jump the server needs a moment to accept the bot's new spot; until then it
+    # thinks the bot is still too far away to talk and ignores the request. So: wait, retry.
+    for _ in range(3):
+        time.sleep(2.5)
+        menu = bot.open_menu(npc_guid=T.creature_guid(entry, int(npc["low"])))
+        if menu:
+            return menu
+    return None
+
+
+def embark(bot, r, label, expect_ok=True):
+    menu = talk_to(bot, MARLOW)
+    r.check(f"{label}: Sergeant Marlow answers", menu is not None)
+    if not menu:
+        return False
+    asked = time.time()
+    picked = bot.pick(menu, r"Contract: Into the Deadmines")
+    r.check(f"{label}: the board offers Into the Deadmines", picked, " | ".join(t for _, t, _ in menu["options"]))
+    sub = bot.wait_menu(asked)
+    since = bot.mark()
+    ok = sub is not None and bot.pick(sub, r"Embark now")
+    r.check(f"{label}: Embark is offered", ok)
+    if not expect_ok:
+        return bot.wait_chat(r"Only your company's heroes|Call at least", 6, since)
+    s = wait_state(bot, lambda s: num(s, "map") == DEADMINES and s.get("mission") == "deadmines_short")
+    r.check(f"{label}: embarking puts you in the Deadmines on the mission",
+            num(s, "map") == DEADMINES and s.get("mission") == "deadmines_short" and num(s, "state") == 1,
+            f"map={s.get('map')} mission={s.get('mission')} state={s.get('state')}")
+    return num(s, "map") == DEADMINES
+
+
+def kill_boss(bot):
+    bot.cmd(".go creature %d" % RHAHKZOR_SPAWN)
+    time.sleep(3)
+    return bot.probe("killboss")
+
+
+# The plan -------------------------------------------------------------------------------------
 
 def main(bot, r, only=None):
     restart = "restart" in sys.argv
@@ -137,72 +175,138 @@ def main(bot, r, only=None):
     print("Test 2: hamlet leash")
     bot.probe("wander")
     time.sleep(2)
-    away = state(bot)
     s = wait_state(bot, at_home, timeout=15)
-    r.check("2: walking out of the hamlet sends you back", at_home(s),
-            f"was hubdist={away.get('hubdist')}, now map={s.get('map')} hubdist={s.get('hubdist')}")
+    r.check("2: walking out of the hamlet sends you back", at_home(s), f"map={s.get('map')} hubdist={s.get('hubdist')}")
 
-    # 3. Board and embark (with one bot hero) --------------------------------------------------
-    print("Test 3: mission board and embark")
+    # 3. Tavern and roster ---------------------------------------------------------------------
+    print("Test 3: tavern and roster")
+    recruits, raw = tavern(bot)
+    roles = [x["role"] for x in recruits]
+    r.check("3: the founding tavern offers 6 recruits", len(recruits) == 6, raw.get("list"))
+    r.check("3: founding recruits include a tank and a healer", "tank" in roles and "healer" in roles, ",".join(roles))
+    r.check("3: founding recruits are free, 4 hires", num(raw, "free") == 4 and all(x["cost"] == 0 for x in recruits),
+            f"free={raw.get('free')}")
+    r.check("3: founding recruits are at the commander's level", all(x["level"] == 10 for x in recruits))
+
+    menu = talk_to(bot, MAUDE)
+    r.check("3: Maude Ashby answers", menu is not None)
+    first = None
+    if menu:
+        first = bot.pick(menu, r"^Hire ")
+        time.sleep(2)
+    heroes, _ = roster(bot)
+    r.check("3: hiring from Maude's menu puts the recruit on the roster", len(heroes) == 1, f"picked={first}")
+
+    recruits, _ = tavern(bot)
+    for rec in recruits[:3]:
+        since = bot.mark()
+        bot.cmd(".warband hire " + rec["name"])
+        bot.wait_chat(r"signs with the company|\[Warband\]", 5, since)
+    heroes, raw = roster(bot)
+    r.check("3: four founding heroes hired", len(heroes) == 4, raw.get("list"))
+    recruits, raw = tavern(bot)
+    r.check("3: after 4 hires the other founding recruits leave", len(recruits) == 0, raw.get("list"))
+    log = " ".join(bot.probe("log").values())
+    r.check("3: hiring is logged", "hero_hired" in log, log)
+
+    names = sorted(heroes)
+    for name in names[:2]:
+        bot.cmd(".warband call " + name)
+        time.sleep(1)
+    # In the roster read-out ":1:1:" = in the party and online.
+    wait_state(bot, lambda s: s.get("list", "").count(":1:1:") >= 2, timeout=30, probe="roster")
+    heroes, raw = roster(bot)
+    online = [n for n, h in heroes.items() if h["online"]]
+    r.check("3: called heroes log in", len(online) == 2, raw.get("list"))
+    r.check("3: a new hero is set up at its recruit level (10)", all(heroes[n]["level"] == 10 for n in online),
+            ",".join(f"{n}={heroes[n]['level']}" for n in online))
+    s = wait_state(bot, lambda s: s.get("botmaps") == "0,0", timeout=15)
+    r.check("3: called heroes join your group in the hamlet", num(s, "bots") == 2 and s.get("botmaps") == "0,0",
+            f"bots={s.get('bots')} botmaps={s.get('botmaps')}")
+
+    bot.cmd(".warband send " + names[1])
+    s = wait_state(bot, lambda s: num(s, "bots") == 1, timeout=15)
+    heroes, raw = roster(bot)
+    r.check("3: a hero sent to the barracks leaves the party", num(s, "bots") == 1 and not heroes[names[1]]["party"],
+            raw.get("list"))
+
+    # Bots that aren't the company's heroes can't march.
     for _ in range(2):  # playerbots is sometimes slow to log a bot in: ask twice before failing
         bot.cmd(".playerbots bot addclass priest")
-        s = wait_state(bot, lambda s: num(s, "bots") >= 1, timeout=20)
-        if num(s, "bots") >= 1:
+        s = wait_state(bot, lambda s: num(s, "bots") >= 2, timeout=20)
+        if num(s, "bots") >= 2:
             break
-    r.check("3: a bot joins the group", num(s, "bots") >= 1, f"bots={s.get('bots')}")
-    if embark(bot, r, "3"):
+    refused = embark(bot, r, "3", expect_ok=False) if num(s, "bots") >= 2 else None
+    r.check("3: other bots in the group can't march", refused is not None, f"bots={s.get('bots')}")
+    bot.cmd(".playerbots bot remove *")
+    time.sleep(3)
+    bot.cmd(".warband call " + names[0])  # the hero was logged out by "remove *": bring them back
+    s = wait_state(bot, lambda s: num(s, "bots") == 1 and s.get("botmaps") == "0", timeout=25)
+    r.check("3: a hero logged out by other means can be called back", num(s, "bots") == 1, f"bots={s.get('bots')}")
+
+    # 4. Board and embark ------------------------------------------------------------------------
+    print("Test 4: mission board and embark")
+    if embark(bot, r, "4"):
         s = wait_state(bot, lambda s: s.get("botmaps") == str(DEADMINES), timeout=12)
-        r.check("3: the bot comes along into the Deadmines", s.get("botmaps") == str(DEADMINES),
+        r.check("4: the hero comes along into the Deadmines", s.get("botmaps") == str(DEADMINES),
                 f"botmaps={s.get('botmaps')}")
 
-        # 4. Mission leash ---------------------------------------------------------------------
-        print("Test 4: mission leash")
+        # 5. Mission leash -----------------------------------------------------------------------
+        print("Test 5: mission leash")
         bot.probe("wander")
         time.sleep(2)
         s = wait_state(bot, lambda s: num(s, "map") == DEADMINES, timeout=20)
-        r.check("4: leaving the dungeon on a mission puts you back inside", num(s, "map") == DEADMINES,
+        r.check("5: leaving the dungeon on a mission puts you back inside", num(s, "map") == DEADMINES,
                 f"map={s.get('map')}")
 
-        # 5. Boss kill -------------------------------------------------------------------------
-        print("Test 5: boss kill")
-        bot.cmd(".go creature %d" % RHAHKZOR_SPAWN)
-        time.sleep(3)
+        # 6. Boss kill -------------------------------------------------------------------------
+        print("Test 6: boss kill")
         since = bot.mark()
-        k = bot.probe("killboss")
-        r.check("5: Rhahk'Zor found and killed", k.get("killed") == "1", str(k))
-        r.check("5: 'Mission complete' announced", bot.wait_chat(r"Mission complete", 8, since) is not None)
+        k = kill_boss(bot)
+        r.check("6: Rhahk'Zor found and killed", k.get("killed") == "1", str(k))
+        r.check("6: 'Mission complete' announced", bot.wait_chat(r"Mission complete", 8, since) is not None)
         s = wait_state(bot, lambda s: at_home(s) and s.get("mission") == "none", timeout=30)
-        r.check("5: everyone is sent home after the boss", at_home(s) and s.get("mission") == "none"
+        r.check("6: everyone is sent home after the boss", at_home(s) and s.get("mission") == "none"
                 and num(s, "state") == 0, f"map={s.get('map')} mission={s.get('mission')} state={s.get('state')}")
         s = wait_state(bot, lambda s: s.get("botmaps") == str(HUB_MAP), timeout=12)
-        r.check("5: the bot comes home too", s.get("botmaps") == str(HUB_MAP), f"botmaps={s.get('botmaps')}")
+        r.check("6: the hero comes home too", s.get("botmaps") == str(HUB_MAP), f"botmaps={s.get('botmaps')}")
         log = " ".join(bot.probe("log").values())
-        r.check("5: mission completion is logged", "mission_done" in log, log)
+        r.check("6: mission completion is logged", "mission_done" in log, log)
+        heroes, raw = roster(bot)
+        r.check("6: the hero on the mission counts it", heroes[names[0]]["missions"] == 1
+                and heroes[names[2]]["missions"] == 0, raw.get("list"))
+        recruits, raw = tavern(bot)
+        r.check("6: a new batch of 4 recruits arrives", len(recruits) == 4, raw.get("list"))
+        r.check("6: new recruits cost gold", recruits and all(x["cost"] > 0 and not x["founding"] for x in recruits),
+                raw.get("list"))
+        if recruits:
+            since = bot.mark()
+            bot.cmd(".warband hire " + recruits[0]["name"])
+            r.check("6: a full roster can't hire", bot.wait_chat(r"roster is full", 5, since) is not None)
 
-    # 6. Abandon ---------------------------------------------------------------------------------
-    print("Test 6: abandon")
+    # 7. Abandon -------------------------------------------------------------------------------
+    print("Test 7: abandon")
     time.sleep(11)  # let the return teleport's grace time pass
-    if embark(bot, r, "6"):
+    if embark(bot, r, "7"):
         since = bot.mark()
         bot.cmd(".warband abandon")
-        r.check("6: abandoning is confirmed", bot.wait_chat(r"Mission abandoned", 6, since) is not None)
+        r.check("7: abandoning is confirmed", bot.wait_chat(r"Mission abandoned", 6, since) is not None)
         s = wait_state(bot, lambda s: at_home(s) and s.get("mission") == "none", timeout=20)
-        r.check("6: abandoning brings you home", at_home(s) and num(s, "state") == 0,
+        r.check("7: abandoning brings you home", at_home(s) and num(s, "state") == 0,
                 f"map={s.get('map')} mission={s.get('mission')} state={s.get('state')}")
         log = " ".join(bot.probe("log").values())
-        r.check("6: abandoning is logged", "mission_abandoned" in log, log)
+        r.check("7: abandoning is logged", "mission_abandoned" in log, log)
 
-    # 7. Restart -----------------------------------------------------------------------------------
+    # 8. Restart -------------------------------------------------------------------------------
     if restart:
-        print("Test 7: restart mid-mission")
+        print("Test 8: restart mid-mission")
         time.sleep(11)
-        if embark(bot, r, "7"):
+        if embark(bot, r, "8"):
             bot.logout()
             subprocess.run([LAUNCHER, "--stop", "warband"], capture_output=True, text=True, timeout=180)
             time.sleep(2)
             subprocess.Popen([LAUNCHER, "--start", "warband"])
-            ready = wait_for_ready(180)
-            r.check("7: the worldserver comes back up", ready)
+            r.check("8: the worldserver comes back up", wait_for_ready(180))
             # The first login after a start can be slow (the dungeon map loads then): one session,
             # and ask to enter the world again if the first answer doesn't come.
             time.sleep(15)
@@ -219,17 +323,17 @@ def main(bot, r, only=None):
             bot2.cmd(".gm off")
             bot2.cmd(".cheat god on")
             s = wait_state(bot2, lambda s: num(s, "map") == DEADMINES, timeout=20)
-            r.check("7: after a restart the mission is still running", s.get("mission") == "deadmines_short"
+            r.check("8: after a restart the mission is still running", s.get("mission") == "deadmines_short"
                     and num(s, "state") == 1, f"mission={s.get('mission')} state={s.get('state')}")
-            r.check("7: after a restart you're in the mission's dungeon", num(s, "map") == DEADMINES,
+            r.check("8: after a restart you're in the mission's dungeon", num(s, "map") == DEADMINES,
                     f"map={s.get('map')}")
-            bot2.cmd(".go creature %d" % RHAHKZOR_SPAWN)
-            time.sleep(3)
-            bot2.probe("killboss")
+            s = wait_state(bot2, lambda s: s.get("botmaps") == str(DEADMINES), timeout=30)
+            r.check("8: after a restart the party hero comes back and joins you", s.get("botmaps") == str(DEADMINES),
+                    f"bots={s.get('bots')} botmaps={s.get('botmaps')}")
+            kill_boss(bot2)
             wait_state(bot2, lambda s: at_home(s) and s.get("mission") == "none", timeout=30)
             bot = bot2
 
-    bot.cmd(".playerbots bot remove *")
     passed = sum(1 for _, ok, _ in r.rows if ok)
     print(f"\n{passed}/{len(r.rows)} checks passed.")
     for name, ok, detail in r.rows:

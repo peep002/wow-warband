@@ -2,8 +2,33 @@
 
 ## Current phase
 
-**Phase 2: Hamlet lockdown and mission teleport** — built 2026-11-01, automated tests 34/34,
-**waiting for the owner's in-game test** (`docs/TEST-QUEUE.md`, test 2).
+**Phase 3: Tavern and roster** — built 2026-11-01, automated tests 48/48 (52 with the restart
+test), **waiting for the owner's in-game test** (`docs/TEST-QUEUE.md`, test 3). The owner chose
+to continue before testing phase 2 in game; test 2 is still queued.
+
+- [x] Hero pool: 500 playerbots characters (all classes, both factions) moved to the WBHEROES
+      account (`sql/updates/002_hero_pool.sql`); commander accounts are linked to it so they can
+      command its characters as bots
+- [x] Mixed-faction groups allowed (`AllowTwoSide.Interaction.Group/Chat = 1`): tested with an
+      Undead warrior in a Human commander's party
+- [x] Tavern (`wb_tavern.lua`, table `warband_recruits`): founding batch of 6 (a tank and a healer
+      guaranteed), first 4 free; after every mission 4 new recruits for gold, 4 levels under the
+      roster average (minimum 10); each with class, spec, role, one good and one bad trait, backstory
+- [x] Roster (`wb_roster.lua`, table `warband_heroes`): 4 slots; call heroes to the party / send them
+      to the barracks; a hero's first login sets it up (level, spells, gear, the recruited spec);
+      party heroes come back when the commander logs in, also after a restart; missions counted
+- [x] Embark needs at least `Config.heroes.min_party` heroes (1 for now, the design says 4) and no
+      bots from outside the company
+- [x] Maude Ashby (9100001), tavern keeper in Raven Hill (`sql/updates/003_tavern_npc.sql`)
+- [x] Window: new Roster and Tavern tabs with hero cards (class icon, level, race, spec, role,
+      traits with tooltips, backstory, status, Call/Send/Hire buttons)
+- [x] Chat: `.warband roster`, `.warband tavern`, `.warband hire/call/send NAME`
+- [ ] Owner: in-game test (window look, hiring, calling heroes, a mission with heroes)
+
+## Phase 2: Hamlet lockdown and mission teleport — built 2026-11-01
+
+Automated tests passed (34/34); the owner's in-game test (`docs/TEST-QUEUE.md`, test 2) is still
+waiting.
 
 - [x] Commanders: a new character's first login → level 10, class spells, no hearthstone, sent to
       Raven Hill, company row in `warband_company` (`wb_company.lua`). Not death knights, never bots.
@@ -64,6 +89,11 @@ dungeon (in-game test passed 2026-11-01).
   releases and resurrects the normal way; the leash leaves dead players alone.
 - Monsters still drop coin (the closed economy's "no monster coin" comes with the economy, phase 6).
 - Starter gear for new commanders isn't given yet: they keep their level-1 clothes (phase 6, armory).
+- Heroes get no XP or level-ups yet, and talent points beyond level 10 aren't spent (phase 4).
+- Company gold only changes by hiring (start 150, recruits cost 40 + 4 per level); missions pay
+  nothing yet (phase 6). Traits are rolled and shown but do nothing yet (phase 7).
+- The hero pool shrinks by every hero who dies or retires. 500 is plenty for now; re-running
+  `sql/updates/002_hero_pool.sql` (server stopped) tops it up from playerbots' new characters.
 - Recommended level for the Deadmines contract is 15–20, but commanders start at 10 and there's
   no mission XP yet (phase 4). Bring bots and expect it to be hard, or use `.levelup` for testing.
 
@@ -78,6 +108,11 @@ dungeon (in-game test passed 2026-11-01).
 | 2026-11-01 | Databases: `warband_auth`, `warband_characters`, `warband_world`, `warband_playerbots` | Fully separate from the Scholomance server's `acore_*` databases |
 | 2026-11-01 | Ports: Warband 3724 / 8085; the Scholomance server moved to 3725 / 8086, so **both can run at once** (changed later the same day, from the Scholomance project) | The launcher's Play button sets the client's realmlist for whichever server you pick |
 | 2026-11-01 | Commander spells are taught automatically from the class trainers' lists | Closed world: no trainers to visit |
+| 2026-11-01 | Tavern shows 4 recruits (more with upgrades); a new company picks 4 of 6 founding recruits for free | Owner's choice |
+| 2026-11-01 | Heroes are playerbots' ready-made characters, moved to the WBHEROES account | On playerbots' own AddClass accounts a bot is re-rolled (level, gear) whenever it logs in more than 3 levels from its master, which would wipe heroes |
+| 2026-11-01 | Mixed Alliance/Horde groups allowed in worldserver.conf | The design's tavern has all races of both factions |
+| 2026-11-01 | Embarking needs 1 hero for now (`min_party`), not 4 | Easier testing while the tavern is new; raise to 4 when Act I is playable |
+| 2026-11-01 | New heroes get playerbots' auto-gear (green quality) when first set up | Until the armory (phase 6) decides how heroes get gear |
 | 2026-11-01 | Raven Hill's own NPCs (Jitters, Bliztik, the invisible Unseen) are hidden | Jitters is Alliance and would attack Horde commanders; Bliztik is a vendor (closed economy) |
 | 2026-11-01 | Hub: Raven Hill, Duskwood | Design's proposal |
 | 2026-11-01 | Commander can't die for good; optional Ironman mode | Design's recommendation |
@@ -107,3 +142,4 @@ dungeon (in-game test passed 2026-11-01).
 | `.wbdev` probe: state read-out, jump next to an NPC, kill the mission boss, wander off | No walking or fighting needed in tests | |
 | Lua errors in hooks go to `warband_log` (`Log.Safe`) | Errors readable without the worldserver console | Wrap more handlers as they're written |
 | Restart test drives `ServerLauncher.exe --stop/--start` and waits for "ready..." | Restart persistence checked automatically | |
+| Phase 3 scenario: tavern, hiring, calling heroes, a mission with a hero (2026-11-01) | Whole suite 48 checks in about 5 minutes | Switch on the parallel lanes from the Scholomance bot (already in `wb_testbot.py`) once a run passes ~8 minutes |

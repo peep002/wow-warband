@@ -4,26 +4,31 @@
 -- addon. It only draws what the server sends (wb_ui.lua) and sends clicks back.
 -- Style: classic WoW panels (dialog frame, header plate, bottom tabs), 3.3.5a addon API only.
 --   * A minimap button opens and closes it.
---   * Tabs: Missions (now), Roster, Armory, Hamlet (later phases, shown greyed out).
+--   * Tabs: Missions, Roster, Tavern; Armory and Hamlet are shown greyed out for later phases.
 
 local AIO = AIO or require("AIO")
 if AIO.AddAddon() then return end
 
 local Handlers = AIO.AddHandlers("Warband", {})
 
-local W, H = 700, 470
+local W, H = 720, 500
 local LIST_W = 250
+local CARD_H = 74
 local QUESTION = "Interface\\Icons\\INV_Misc_QuestionMark"
 local CLASS_TOKENS = { "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST", "DEATHKNIGHT", "SHAMAN", "MAGE",
                        "WARLOCK", nil, "DRUID" }
+local ROLE = { tank = { "Tank", 0.4, 0.6, 1 }, healer = { "Healer", 0.3, 1, 0.3 }, dps = { "Damage", 1, 0.4, 0.3 } }
 local TABS = {
-    { name = "Missions" },
-    { name = "Roster",  later = "The roster and tavern open in phase 3." },
-    { name = "Armory",  later = "The shared armory opens in phase 6." },
-    { name = "Hamlet",  later = "Hamlet buildings open in phase 11." },
+    { key = "missions", name = "Missions" },
+    { key = "roster",   name = "Roster" },
+    { key = "tavern",   name = "Tavern" },
+    { key = "armory",   name = "Armory", later = "The shared armory opens in phase 6." },
+    { key = "hamlet",   name = "Hamlet", later = "Hamlet buildings open in phase 11." },
 }
 
 local frame, data, selected
+
+-- Small helpers ----------------------------------------------------------------------------------
 
 local function Text(parent, font, r, g, b)
     local t = parent:CreateFontString(nil, "OVERLAY", font or "GameFontNormal")
@@ -31,6 +36,9 @@ local function Text(parent, font, r, g, b)
     t:SetJustifyH("LEFT")
     return t
 end
+
+-- Region:SetShown only exists in later expansions.
+local function Shown(region, show) if show then region:Show() else region:Hide() end end
 
 local function Inset(parent)
     local f = CreateFrame("Frame", nil, parent)
@@ -42,19 +50,61 @@ local function Inset(parent)
     return f
 end
 
-local function ClassName(class, name)
+local function ClassColor(class)
     local token = CLASS_TOKENS[class]
-    local c = token and RAID_CLASS_COLORS[token]
+    return token and RAID_CLASS_COLORS[token]
+end
+
+local function ClassName(class, name)
+    local c = ClassColor(class)
     if not c then return name end
     return string.format("|cff%02x%02x%02x%s|r", c.r * 255, c.g * 255, c.b * 255, name)
 end
 
 local function Cap(s) return s and (s:sub(1, 1):upper() .. s:sub(2)) or "" end
 
--- Region:SetShown only exists in later expansions.
-local function Shown(region, show) if show then region:Show() else region:Hide() end end
+local function SetClassIcon(tex, class)
+    local coords = CLASS_TOKENS[class] and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[CLASS_TOKENS[class]]
+    if coords then
+        tex:SetTexture("Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes")
+        tex:SetTexCoord(unpack(coords))
+    else
+        tex:SetTexture(QUESTION)
+        tex:SetTexCoord(0, 1, 0, 1)
+    end
+end
 
--- The frame ------------------------------------------------------------------------------------
+local function TabIndex(key)
+    for i, t in ipairs(TABS) do
+        if t.key == key then return i end
+    end
+end
+
+-- The frame --------------------------------------------------------------------------------------
+
+local function MakeScrollPage(parent, name)
+    local page = CreateFrame("Frame", nil, parent)
+    page:SetAllPoints()
+    page.header = Text(page, "GameFontNormal")
+    page.header:SetPoint("TOPLEFT", 4, 0)
+    page.note = Text(page, "GameFontHighlightSmall", 0.8, 0.8, 0.8)
+    page.note:SetPoint("TOPRIGHT", -4, 0)
+    page.note:SetJustifyH("RIGHT")
+    local box = Inset(page)
+    box:SetPoint("TOPLEFT", 0, -16)
+    box:SetPoint("BOTTOMRIGHT", 0, 0)
+    page.scroll = CreateFrame("ScrollFrame", name, box, "UIPanelScrollFrameTemplate")
+    page.scroll:SetPoint("TOPLEFT", 6, -6)
+    page.scroll:SetPoint("BOTTOMRIGHT", -28, 6)
+    page.content = CreateFrame("Frame", nil, page.scroll)
+    page.content:SetSize(W - 36 - 40, 10)
+    page.scroll:SetScrollChild(page.content)
+    page.empty = Text(box, "GameFontDisable")
+    page.empty:SetPoint("CENTER")
+    page.empty:SetJustifyH("CENTER")
+    page.cards = {}
+    return page
+end
 
 local function MakeFrame()
     local f = CreateFrame("Frame", "WarbandFrame", UIParent)
@@ -91,24 +141,30 @@ local function MakeFrame()
     f.company:SetPoint("TOP", 0, -30)
     f.company:SetJustifyH("CENTER")
 
-    -- Missions page --------------------------------------------------------------------------
-    local page = CreateFrame("Frame", nil, f)
-    page:SetPoint("TOPLEFT", 18, -52)
-    page:SetPoint("BOTTOMRIGHT", -18, 18)
-    f.missions = page
+    local body = CreateFrame("Frame", nil, f)
+    body:SetPoint("TOPLEFT", 18, -52)
+    body:SetPoint("BOTTOMRIGHT", -18, 18)
+    f.pages = {}
+
+    -- Missions page ----------------------------------------------------------------------------
+    local page = CreateFrame("Frame", nil, body)
+    page:SetAllPoints()
+    f.pages.missions = page
 
     local listLabel = Text(page, "GameFontNormal")
     listLabel:SetPoint("TOPLEFT", 4, 0)
     listLabel:SetText("Contracts on the board")
     f.list = Inset(page)
     f.list:SetPoint("TOPLEFT", 0, -16)
-    f.list:SetSize(LIST_W, H - 52 - 18 - 16 - 4)
+    f.list:SetPoint("BOTTOMLEFT", 0, 0)
+    f.list:SetWidth(LIST_W)
     f.rows = {}
 
     f.detail = Inset(page)
     f.detail:SetPoint("TOPLEFT", f.list, "TOPRIGHT", 8, 16)
     f.detail:SetPoint("BOTTOMRIGHT", 0, 0)
     local d = f.detail
+    local textW = W - 36 - LIST_W - 8 - 30
     d.icon = d:CreateTexture(nil, "ARTWORK")
     d.icon:SetSize(40, 40)
     d.icon:SetPoint("TOPLEFT", 14, -14)
@@ -122,7 +178,7 @@ local function MakeFrame()
     d.objective:SetPoint("TOPLEFT", d.facts, "BOTTOMLEFT", 0, -12)
     d.text = Text(d, "GameFontHighlight")
     d.text:SetPoint("TOPLEFT", d.objective, "BOTTOMLEFT", 0, -8)
-    d.text:SetWidth(W - 36 - LIST_W - 8 - 30)
+    d.text:SetWidth(textW)
     d.rewardsLabel = Text(d, "GameFontNormal")
     d.rewardsLabel:SetPoint("TOPLEFT", d.text, "BOTTOMLEFT", 0, -14)
     d.rewardsLabel:SetText("Rewards")
@@ -132,7 +188,7 @@ local function MakeFrame()
     d.partyLabel:SetPoint("TOPLEFT", d.rewards, "BOTTOMLEFT", 0, -14)
     d.party = Text(d, "GameFontHighlightSmall")
     d.party:SetPoint("TOPLEFT", d.partyLabel, "BOTTOMLEFT", 0, -4)
-    d.party:SetWidth(W - 36 - LIST_W - 8 - 30)
+    d.party:SetWidth(textW)
     d.button = CreateFrame("Button", nil, d, "UIPanelButtonTemplate")
     d.button:SetSize(150, 26)
     d.button:SetPoint("BOTTOMRIGHT", -12, 12)
@@ -140,12 +196,16 @@ local function MakeFrame()
     d.empty:SetPoint("CENTER")
     d.empty:SetText("No contracts on the board.")
 
+    -- Roster and tavern pages ------------------------------------------------------------------
+    f.pages.roster = MakeScrollPage(body, "WarbandRosterScroll")
+    f.pages.tavern = MakeScrollPage(body, "WarbandTavernScroll")
+
     -- Placeholder page for tabs that open in later phases.
-    f.later = CreateFrame("Frame", nil, f)
-    f.later:SetAllPoints(page)
-    f.later.text = Text(f.later, "GameFontDisableLarge")
-    f.later.text:SetPoint("CENTER")
-    f.later.text:SetJustifyH("CENTER")
+    f.pages.later = CreateFrame("Frame", nil, body)
+    f.pages.later:SetAllPoints()
+    f.pages.later.text = Text(f.pages.later, "GameFontDisableLarge")
+    f.pages.later.text:SetPoint("CENTER")
+    f.pages.later.text:SetJustifyH("CENTER")
 
     -- Bottom tabs, the classic character-window kind.
     for i, tab in ipairs(TABS) do
@@ -164,6 +224,8 @@ local function MakeFrame()
     PanelTemplates_SetTab(f, 1)
     return f
 end
+
+-- Missions page ------------------------------------------------------------------------------------
 
 local function Row(i)
     local r = frame.rows[i]
@@ -194,8 +256,6 @@ local function Row(i)
     return r
 end
 
--- Drawing ----------------------------------------------------------------------------------------
-
 local function DrawDetail(m, onMission)
     local d = frame.detail
     Shown(d.empty, m == nil)
@@ -215,19 +275,19 @@ local function DrawDetail(m, onMission)
     for _, b in ipairs(data.party) do
         party[#party + 1] = ClassName(b.class, b.name) .. " |cffa0a0a0(" .. b.level .. ")|r"
     end
-    d.partyLabel:SetText(string.format("Your party (%d of 4 heroes)", #data.party))
+    d.partyLabel:SetText(string.format("Your party (%d of %d heroes)", #data.party, data.maxParty))
     d.party:SetText(#party > 0 and table.concat(party, ",  ")
-        or "|cffa0a0a0No heroes in your group yet. Until the tavern opens (phase 3), add bots with|r\n"
-        .. "|cffffffff.playerbots bot addclass warrior|r |cffa0a0a0(or priest, mage, rogue...).|r")
+        or "|cffa0a0a0No heroes in your party. Call them from the Roster tab, or hire some at the Tavern.|r")
 
     if onMission then
         d.button:SetText("Abandon mission")
         d.button:SetScript("OnClick", function() AIO.Handle("Warband", "Abandon") end)
+        d.button:Enable()
     else
         d.button:SetText("Embark")
         d.button:SetScript("OnClick", function() AIO.Handle("Warband", "Embark", m.key) end)
+        if #data.party >= data.minParty then d.button:Enable() else d.button:Disable() end
     end
-    d.button:Enable()
 end
 
 local function DrawMissions()
@@ -253,29 +313,175 @@ local function DrawMissions()
     DrawDetail(current, onMission)
 end
 
+-- Hero / recruit cards (roster and tavern pages) ---------------------------------------------------
+
+local function TraitTooltip(self)
+    if not self.trait then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine(self.trait.name, unpack(self.color))
+    GameTooltip:AddLine(self.trait.text, 1, 1, 1, true)
+    GameTooltip:AddLine("Traits take effect in a later phase.", 0.6, 0.6, 0.6, true)
+    GameTooltip:Show()
+end
+
+local function TraitButton(card)
+    local b = CreateFrame("Button", nil, card)
+    b:SetHeight(14)
+    b.label = Text(b, "GameFontHighlightSmall")
+    b.label:SetPoint("LEFT")
+    b:SetScript("OnEnter", TraitTooltip)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return b
+end
+
+local function Card(page, i)
+    local c = page.cards[i]
+    if c then return c end
+    c = CreateFrame("Frame", nil, page.content)
+    c:SetSize(W - 36 - 40, CARD_H - 4)
+    c:SetPoint("TOPLEFT", 0, -(i - 1) * CARD_H)
+    c:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 12,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+    c:SetBackdropColor(0.1, 0.1, 0.1, 0.8)
+    c:SetBackdropBorderColor(0.45, 0.45, 0.45, 1)
+    c.icon = c:CreateTexture(nil, "ARTWORK")
+    c.icon:SetSize(44, 44)
+    c.icon:SetPoint("LEFT", 10, 0)
+    c.name = Text(c, "GameFontNormalLarge")
+    c.name:SetPoint("TOPLEFT", c.icon, "TOPRIGHT", 10, 2)
+    c.role = Text(c, "GameFontNormalSmall")
+    c.role:SetPoint("LEFT", c.name, "RIGHT", 10, 0)
+    c.what = Text(c, "GameFontHighlightSmall", 0.85, 0.85, 0.85)
+    c.what:SetPoint("TOPLEFT", c.name, "BOTTOMLEFT", 0, -3)
+    c.good = TraitButton(c)
+    c.good:SetPoint("TOPLEFT", c.what, "BOTTOMLEFT", 0, -3)
+    c.bad = TraitButton(c)
+    c.bad:SetPoint("LEFT", c.good, "RIGHT", 14, 0)
+    c.story = Text(c, "GameFontDisableSmall")
+    c.story:SetPoint("TOPLEFT", c.good, "BOTTOMLEFT", 0, -3)
+    c.story:SetWidth(W - 36 - 40 - 64 - 170)
+    c.status = Text(c, "GameFontHighlightSmall")
+    c.status:SetPoint("TOPRIGHT", -12, -10)
+    c.status:SetJustifyH("RIGHT")
+    c.button = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
+    c.button:SetSize(140, 24)
+    c.button:SetPoint("BOTTOMRIGHT", -10, 10)
+    page.cards[i] = c
+    return c
+end
+
+local function FillTrait(b, trait, sign, color)
+    b.trait, b.color = trait, color
+    if trait then
+        b.label:SetText(sign .. " " .. trait.name)
+        b.label:SetTextColor(unpack(color))
+        b:SetWidth(b.label:GetStringWidth() + 4)
+        b:Show()
+    else
+        b:Hide()
+    end
+end
+
+local function FillCard(c, p)
+    SetClassIcon(c.icon, p.class)
+    c.name:SetText(ClassName(p.class, p.name))
+    local role = ROLE[p.role] or ROLE.dps
+    c.role:SetText(role[1])
+    c.role:SetTextColor(role[2], role[3], role[4])
+    c.what:SetText(string.format("Level %d %s  -  %s %s", p.level, p.race, p.spec, p.className))
+    FillTrait(c.good, p.good, "+", { 0.3, 1, 0.3 })
+    FillTrait(c.bad, p.bad, "-", { 1, 0.35, 0.3 })
+    c.story:SetText(p.backstory or "")
+end
+
+local function Place(page, count, emptyText)
+    page.content:SetHeight(math.max(10, count * CARD_H))
+    for i = count + 1, #page.cards do page.cards[i]:Hide() end
+    page.empty:SetText(emptyText or "")
+    Shown(page.empty, count == 0)
+end
+
+local function DrawRoster()
+    local page = frame.pages.roster
+    local inParty = 0
+    for _, h in ipairs(data.roster) do if h.inParty and h.status == "alive" then inParty = inParty + 1 end end
+    page.header:SetText(string.format("Roster: %d of %d heroes", data.alive, data.slots))
+    page.note:SetText(string.format("Party: %d of %d   (embarking needs %d)", inParty, data.maxParty, data.minParty))
+    for i, h in ipairs(data.roster) do
+        local c = Card(page, i)
+        FillCard(c, h)
+        local alive = h.status == "alive"
+        c.status:SetText((alive and (h.inParty and "|cff33ff33In your party|r" or "|cffa0a0a0In the barracks|r")
+            or ("|cffff3333" .. Cap(h.status) .. "|r")) .. "\n|cffa0a0a0" .. h.missions .. " missions|r")
+        if not alive then
+            c.button:Hide()
+        else
+            c.button:Show()
+            c.button:SetText(h.inParty and "Send to barracks" or "Call to party")
+            local guid, action = h.guid, h.inParty and "Send" or "Call"
+            c.button:SetScript("OnClick", function() AIO.Handle("Warband", action, guid) end)
+            if data.onMission or (not h.inParty and inParty >= data.maxParty) then c.button:Disable() else c.button:Enable() end
+        end
+        c:Show()
+    end
+    Place(page, #data.roster, "Nobody on the roster yet.\nHire your first heroes at the Tavern.")
+end
+
+local function DrawTavern()
+    local page = frame.pages.tavern
+    local full = data.alive >= data.slots
+    page.header:SetText(data.foundingLeft > 0
+        and string.format("Founding recruits: hire %d for free", data.foundingLeft)
+        or string.format("Recruits for hire (%d)", #data.recruits))
+    page.note:SetText(string.format("Roster: %d of %d   |   Company gold: |cffffd100%d|r", data.alive, data.slots, data.gold))
+    for i, r in ipairs(data.recruits) do
+        local c = Card(page, i)
+        FillCard(c, r)
+        local free = r.founding and data.foundingLeft > 0
+        local afford = free or data.gold >= r.cost
+        c.status:SetText(free and "|cff33ff33Free|r" or string.format("%s%d gold|r", afford and "|cffffd100" or "|cffff3333", r.cost))
+        c.button:Show()
+        c.button:SetText("Hire")
+        local guid = r.guid
+        c.button:SetScript("OnClick", function() AIO.Handle("Warband", "Hire", guid) end)
+        if full or not afford then c.button:Disable() else c.button:Enable() end
+        c:Show()
+    end
+    Place(page, #data.recruits, "Nobody is waiting at the tavern.\nNew recruits arrive after each mission.")
+end
+
+-- Drawing the whole window -------------------------------------------------------------------------
+
 function Handlers.Draw()
     if not frame or not data then return end
     frame.company:SetText(string.format("Commander %s   |cffa0a0a0-|r   Act %d   |cffa0a0a0-|r   |cffffd100%d|r gold   "
         .. "|cffa0a0a0-|r   %d renown   |cffa0a0a0-|r   %d materials",
         data.commander, data.act, data.gold, data.renown, data.materials))
     local tab = TABS[PanelTemplates_GetSelectedTab(frame) or 1]
+    for _, p in pairs(frame.pages) do p:Hide() end
     if tab.later then
-        frame.missions:Hide()
-        frame.later.text:SetText(tab.name .. "\n\n" .. tab.later)
-        frame.later:Show()
-    else
-        frame.later:Hide()
-        frame.missions:Show()
+        frame.pages.later.text:SetText(tab.name .. "\n\n" .. tab.later)
+        frame.pages.later:Show()
+    elseif tab.key == "missions" then
+        frame.pages.missions:Show()
         DrawMissions()
+    elseif tab.key == "roster" then
+        frame.pages.roster:Show()
+        DrawRoster()
+    elseif tab.key == "tavern" then
+        frame.pages.tavern:Show()
+        DrawTavern()
     end
 end
 
--- From the server ------------------------------------------------------------------------------
+-- From the server ------------------------------------------------------------------------------------
 
-function Handlers.Show(player, newData)
+function Handlers.Show(player, newData, tab)
     if type(newData) ~= "table" then return end
     data = newData
     frame = frame or MakeFrame()
+    if type(tab) == "string" and TabIndex(tab) then PanelTemplates_SetTab(frame, TabIndex(tab)) end
     frame:Show()
     Handlers.Draw()
 end
@@ -286,7 +492,7 @@ function Handlers.Update(player, newData)
     if frame and frame:IsShown() then Handlers.Draw() end
 end
 
--- The minimap button -----------------------------------------------------------------------------
+-- The minimap button -----------------------------------------------------------------------------------
 
 local function MakeMinimapButton()
     local b = CreateFrame("Button", "WarbandMinimapButton", Minimap)

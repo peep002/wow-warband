@@ -64,6 +64,10 @@ Keep this list current. These are lost if the run folder is wiped.
     `Playerbots.RandomBotAutologin` = 0, `Playerbots.MinRandomBots` = 0, `Playerbots.MaxRandomBots` = 0
     (no random world bots; heroes only).
   - `modules\mod_ale.conf`: `ALE.TraceBack = true` (Lua errors show the line).
+  - `worldserver.conf`: `AllowTwoSide.Interaction.Group = 1` and `AllowTwoSide.Interaction.Chat = 1`
+    (2026-11-01): Alliance and Horde heroes in one party.
+- Account `WBHEROES` (warband_auth) holds the hero pool; its password is random bytes, nobody logs
+  in to it. Commander accounts get rows in `warband_playerbots.playerbots_account_links` automatically.
 - `lua_scripts\AIO_Server` is AIO's server half (custom windows), copied from
   `C:\Claude\Projects\thirdparty\AIO\AIO_Server` (commit 087e279, same as the Scholomance server).
   The client half (`Interface\AddOns\AIO_Client`) is already in the shared WoW client.
@@ -100,6 +104,9 @@ Stop worldserver with `server shutdown 1` at `AC>`; Ctrl+C stops authserver.
 |---|---|---|---|
 | `sql/base/001_warband_tables.sql` | warband_characters | 2026-11-01 | `DROP TABLE warband_company, warband_missions, warband_log` (forgets every company) |
 | `sql/updates/001_hamlet.sql` | warband_world | 2026-11-01 | `sql/undo/001_hamlet_undo.sql` |
+| `sql/base/002_roster_tables.sql` | warband_characters | 2026-11-01 | `DROP TABLE warband_heroes, warband_recruits` (forgets every roster) |
+| `sql/updates/002_hero_pool.sql` (server stopped) | auth + characters + playerbots | 2026-11-01 | none needed: characters stay valid; moved 500 to WBHEROES |
+| `sql/updates/003_tavern_npc.sql` | warband_world | 2026-11-01 | delete 9100001 from `creature`, `creature_template`, `creature_template_model`, `npc_text` |
 
 Apply with: `& "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" -u acore -pacore <database> -e "source sql/...sql"`
 (from this project folder). Creature changes need a worldserver restart.

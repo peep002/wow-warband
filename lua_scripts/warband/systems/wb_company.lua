@@ -109,6 +109,9 @@ RegisterPlayerEvent(PLAYER_EVENT_ON_LOGOUT, function(event, player)
 end)
 
 RegisterPlayerEvent(PLAYER_EVENT_ON_CHARACTER_DELETE, function(event, guid)
+    -- The company's heroes and recruits go back to the hero pool for other companies.
+    CharDBExecute("DELETE FROM `warband_heroes` WHERE `company` = " .. guid)
+    CharDBExecute("DELETE FROM `warband_recruits` WHERE `company` = " .. guid)
     CharDBExecute("DELETE FROM `warband_missions` WHERE `company` = " .. guid)
     CharDBExecute("DELETE FROM `warband_company` WHERE `guid` = " .. guid)
     cache[guid] = nil

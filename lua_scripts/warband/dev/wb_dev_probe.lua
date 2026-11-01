@@ -6,6 +6,8 @@
 -- Commands (chat):
 --   .wbdev state        commander?, level, map, position, distance to the hamlet, company state,
 --                       running mission, bots in the group
+--   .wbdev roster       every hero: name, class, level, in party?, online?, missions, status
+--   .wbdev tavern       every recruit: name, role, level, cost, founding?; free founding hires left
 --   .wbdev hasspell ID  whether you know that spell
 --   .wbdev npc ENTRY    the nearest creature with that entry: low GUID and distance
 --   .wbdev gonpc ENTRY  jump next to the nearest creature with that entry (to talk to it)
@@ -37,6 +39,31 @@ function probes.state(player)
         c and c.state or -1, c and c.act or 0, c and c.gold or 0, m and m.key or "none",
         #bots, #botmaps > 0 and table.concat(botmaps, ",") or "none",
         player:GetItemCount(Config.lockdown.hearthstone)))
+end
+
+-- One line per hero: name:class:level:in_party(0/1):online(0/1):missions:status
+function probes.roster(player)
+    local Roster = require("wb_roster")
+    local list, parts, party = Roster.List(player), {}, 0
+    for _, h in ipairs(list) do
+        local online = GetPlayerByGUID(GetPlayerGUID(h.guid))
+        if h.in_party then party = party + 1 end
+        parts[#parts + 1] = string.format("%s:%d:%d:%d:%d:%d:%s", h.name, h.class, online and online:GetLevel() or h.level,
+            h.in_party and 1 or 0, online and 1 or 0, h.missions, h.status)
+    end
+    Out(player, string.format("heroes=%d alive=%d party=%d list=%s", #list, Roster.Alive(player), party,
+        #parts > 0 and table.concat(parts, ",") or "none"))
+end
+
+-- name:role:level:cost:founding(0/1) for each recruit
+function probes.tavern(player)
+    local Tavern = require("wb_tavern")
+    local list, parts = Tavern.Offers(player), {}
+    for _, r in ipairs(list) do
+        parts[#parts + 1] = string.format("%s:%s:%d:%d:%d", r.name, r.role, r.level, r.cost, r.founding and 1 or 0)
+    end
+    Out(player, string.format("recruits=%d free=%d list=%s", #list, Tavern.FoundingLeft(player),
+        #parts > 0 and table.concat(parts, ",") or "none"))
 end
 
 function probes.hasspell(player, arg)
