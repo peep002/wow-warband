@@ -21,9 +21,11 @@ Only one server (Warband or Scholomance) runs at a time: both use ports 3724 and
 
 | Repo | Branch | Commit |
 |---|---|---|
-| github.com/mod-playerbots/azerothcore-wotlk | Playerbot | (filled in after download) |
-| github.com/mod-playerbots/mod-playerbots | master | |
-| github.com/azerothcore/mod-ale | master | |
+| github.com/mod-playerbots/azerothcore-wotlk | Playerbot | 93333d6 (downloaded 2026-11-01) |
+| github.com/mod-playerbots/mod-playerbots | master | 05a1f6f |
+| github.com/azerothcore/mod-ale | master | 84b85cc |
+
+Build logs: `build-configure.log`, `build-compile.log` in the AzerothCore folder.
 
 ## Building
 
