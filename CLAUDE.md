@@ -48,7 +48,7 @@ That project is the Scholomance Survival server. We copy what works from it, but
 - **Server:** AzerothCore (WotLK 3.3.5a), playerbots branch, with **mod-playerbots** and **mod-ale** (Lua). Add **mod-autobalance** when raids are built (Phase 12), or earlier if dungeon levels don't fit the leveling pace.
 - **Language:** Lua for game rules wherever possible, because it's easier for me to read and reloads without a rebuild. Use C++ only when Lua genuinely can't do the job, and tell me when and why before doing it.
 - **State:** all Warband data lives in custom tables prefixed `warband_` (see the design doc for the first-pass list).
-- **UI:** chat commands first (`.warband roster`, `.warband armory`, etc.). An addon using the **AIO** framework comes later.
+- **UI:** real, clear, good-looking windows, **not** NPC text menus (owner's rule, 2026-11-01). Every main screen gets an **AIO** window in the same phase as its system, in classic WoW panel style. Each window opens from its hamlet NPC, from a minimap Warband button, and from a chat command (`.warband roster`). Keep an NPC text menu only as a backup if the addon is missing.
 - **Hardware:** built and tested first on the owner's Windows gaming PC; later moved to the home server (a Dell Optiplex running Linux). Warband only needs about 5–10 active bots, so random world bots are off.
 - **Never touch the Scholomance Survival server's databases, characters or config.**
 

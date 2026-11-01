@@ -31,48 +31,57 @@ mood and no faction guards **(decided 2026-11-01)**.
 
 ## Campaign structure
 
-A full campaign is five acts, taking heroes from level 10 to 80. **Each act has 5 main missions
-(25 in total), plus many optional side missions** **(decided 2026-11-01; the PDF had about 36
-main missions)**. Each act ends with a gate mission that must be beaten to unlock the next act's
-dungeons.
+A full campaign is **seven acts of 10 levels each**, taking heroes from level 10 to 80. **Each
+act has 5 main missions, the fifth being the act's gate mission (35 main missions in total),
+plus optional side missions** **(decided 2026-11-01; the PDF had five acts and about 36 main
+missions)**. The gate must be beaten to unlock the next act's dungeons. Ten-level acts line up
+with WoW's own dungeon level brackets, so dungeons fit the party's level without scaling.
 
-| Act | Name | Levels | Main missions | Dungeons on the board | Gate mission |
-|---|---|---|---|---|---|
-| I | The Hamlet | 10–25 | 5 | Ragefire Chasm, Deadmines, Wailing Caverns, Shadowfang Keep, Blackfathom Deeps, the Stockade | The Brotherhood's Last Stand: a hardened Deadmines run ending at Edwin VanCleef |
-| II | The Spreading Dark | 25–45 | 5 | Gnomeregan, Scarlet Monastery wings, Razorfen Kraul, Razorfen Downs, Uldaman | The Crimson Throne: Scarlet Cathedral, Mograine and Whitemane |
-| III | The Old Kingdoms | 45–60 | 5 | Zul'Farrak, Maraudon, Sunken Temple, Blackrock Depths, Lower Blackrock Spire, Scholomance, Stratholme, Dire Maul | The Baron's Hour: Stratholme's undead side, ending at Baron Rivendare |
-| IV | Beyond the Portal | 60–70 | 5 | Hellfire Citadel wings, Auchindoun wings, Coilfang wings, Tempest Keep wings, Caverns of Time | The Shadow Labyrinth: ending at Murmur |
-| V | The Frozen Throne | 70–80 | 5 | Utgarde Keep, Nexus, Azjol-Nerub, Ahn'kahet, Drak'Tharon, Violet Hold, Gundrak, Halls of Stone and Lightning, Oculus, Utgarde Pinnacle | The finale: Icecrown Citadel and the Lich King, a 10-person raid with your whole roster |
+| Act | Name | Levels | Dungeons on the board | Gate mission |
+|---|---|---|---|---|
+| I | The Hamlet | 10–20 | Ragefire Chasm, Wailing Caverns, Deadmines, Shadowfang Keep | The Brotherhood's Last Stand: a hardened Deadmines run ending at Edwin VanCleef |
+| II | The Spreading Dark | 20–30 | Blackfathom Deeps, the Stockade, Gnomeregan, Razorfen Kraul, Scarlet Monastery Graveyard and Library | Gnomeregan, ending at Mekgineer Thermaplugg |
+| III | The Crimson Crusade | 30–40 | Scarlet Monastery Armory and Cathedral, Razorfen Downs, Uldaman | The Crimson Throne: Scarlet Cathedral, Mograine and Whitemane |
+| IV | The Old Kingdoms | 40–50 | Zul'Farrak, Maraudon, Sunken Temple | The Sunken Temple, ending at Eranikus |
+| V | The Black Mountain | 50–60 | Blackrock Depths, Lower and Upper Blackrock Spire, Dire Maul, Scholomance, Stratholme | The Baron's Hour: Stratholme's undead side, ending at Baron Rivendare |
+| VI | Beyond the Portal | 60–70 | Hellfire Citadel wings, Auchindoun wings, Coilfang wings, Tempest Keep wings, Caverns of Time | The Shadow Labyrinth: ending at Murmur |
+| VII | The Frozen Throne | 70–80 | Utgarde Keep, Nexus, Azjol-Nerub, Ahn'kahet, Drak'Tharon, Violet Hold, Gundrak, Halls of Stone and Lightning, Oculus, Utgarde Pinnacle | The finale: Icecrown Citadel and the Lich King, a 10-person raid with your whole roster |
 
-**Pacing.** Missions are the only real XP source; regular kill XP is cut to about 10%. Completing
-a main mission gives most of a run's XP, so each one is a visible step. With 5 main missions per
-act **(recalculated 2026-11-01)**:
+*(Act names for II–V and the Act II and IV gates are first suggestions, open to change.)*
 
-- Act I: about 3 levels per mission
-- Act II: about 4
-- Act III: about 3
-- Act IV: about 2
-- Act V: about 2
+**Pacing.** Missions are the main XP source; regular kill XP is cut to about 10%. Each act is 10
+levels over 5 main missions, so **a completed main mission is worth about 2 levels**, a visible
+step without feeling cheesy **(decided 2026-11-01)**. Main missions and side missions together
+should land the roster at the act's top level by the gate; the exact split is a config number.
 
-**Side missions give no XP** **(decided 2026-11-01; the PDF had 10%)**: they exist for gear,
+**Side missions give a little XP (about 10% of a main mission)** **(decided 2026-11-01)**: enough
+that a side mission isn't wasted time, not enough to level by. They exist mainly for gear,
 materials, relics, recruits and renown. Failed main missions give 25%.
+
+**Threat clock (decided 2026-11-01).** Every side mission raises the act's threat. Higher threat
+adds darkness and modifiers to the act's remaining main missions (and pays a bit more loot and
+renown). When threat reaches its maximum, a harder **crisis mission** appears and must be done
+next. Beating the act's gate resets threat to zero. This stops endless side-mission farming
+without forbidding it.
 
 **Keeping the bench relevant.** Heroes who sit out a mission earn 40% of its XP through the
 Training Yard (60% when upgraded). Otherwise the roster splits into a strong four and a useless
 bench, and the finale needs ten.
 
-**Run length.** 25 main missions plus side missions at 30–45 minutes each. Everything is saved
-continuously in the database.
+**Run length.** 35 main missions plus side missions at 30–45 minutes each: roughly 30–35 hours.
+Everything is saved continuously in the database. Chronicles (below) let later campaigns start at
+an act already reached.
 
-**The finale.** Act V ends with a 10-person raid: you plus nine heroes, bench included. Every hero
+**The finale.** Act VII ends with a 10-person raid: you plus nine heroes, bench included. Every hero
 you kept alive and leveled matters here.
 
 ## Side missions and raids
 
 Only main missions move the campaign forward. Side missions are optional detours for gear and
 resources, and each one you take is a mission's worth of stress, risk and supplies spent without
-progress. That tradeoff is the point. There should be many of them on offer **(decided
-2026-11-01)**.
+progress, and raises the threat clock. That tradeoff is the point. The board shows the next main
+mission plus 2–4 side missions (more with Mission Board upgrades), refreshed after every mission
+**(decided 2026-11-01)**.
 
 Raids are the biggest side missions. They need a 10-person warband (commander plus nine heroes),
 so they only appear once your roster is deep enough. Larger raids are scaled down to 10 people
@@ -80,15 +89,15 @@ with mod-autobalance. Long raids are split into wings, and each wing is its own 
 
 | Act | Raids on the board | Original size | Appears when |
 |---|---|---|---|
-| I–II | None (WoW's first raids are level 60) | — | Side missions here are bounties, plunders, rescues and recoveries |
-| III | Zul'Gurub, Ruins of Ahn'Qiraj | 20 | Roster average level 58+ |
-| III | Molten Core, Blackwing Lair, Temple of Ahn'Qiraj | 40 | Roster average 60, Act III gate beaten |
-| IV | Karazhan, Zul'Aman | 10 | Roster average 68+ |
-| IV | Gruul's Lair, Magtheridon's Lair, Serpentshrine Cavern, Tempest Keep: The Eye | 25 | Roster average 70 |
-| IV | Mount Hyjal, Black Temple, Sunwell Plateau | 25 | Act IV gate beaten |
-| V | Naxxramas, Obsidian Sanctum, Eye of Eternity, Vault of Archavon, Onyxia's Lair | 10/25 | Roster average 80 |
-| V | Ulduar, Trial of the Crusader, Ruby Sanctum | 10/25 | After the first Act V raid is cleared |
-| V | Icecrown Citadel | 10/25 | The finale (the Act V gate) |
+| I–IV | None (WoW's first raids are level 60) | — | Side missions here are bounties, plunders, rescues and recoveries |
+| V | Zul'Gurub, Ruins of Ahn'Qiraj | 20 | Roster average level 58+ |
+| V+ | Molten Core, Blackwing Lair, Temple of Ahn'Qiraj | 40 | Roster average 60, Act V gate beaten |
+| VI | Karazhan, Zul'Aman | 10 | Roster average 68+ |
+| VI | Gruul's Lair, Magtheridon's Lair, Serpentshrine Cavern, Tempest Keep: The Eye | 25 | Roster average 70 |
+| VI+ | Mount Hyjal, Black Temple, Sunwell Plateau | 25 | Act VI gate beaten |
+| VII | Naxxramas, Obsidian Sanctum, Eye of Eternity, Vault of Archavon, Onyxia's Lair | 10/25 | Roster average 80 |
+| VII | Ulduar, Trial of the Crusader, Ruby Sanctum | 10/25 | After the first Act VII raid is cleared |
+| VII | Icecrown Citadel | 10/25 | The finale (the Act VII gate) |
 
 Raid rewards: raid-tier gear, a guaranteed relic from each final boss, double materials and big
 renown. Raid risk: ten heroes exposed at once, and a wipe can gut the roster. Raids from earlier
@@ -132,7 +141,8 @@ each mission; the rest rest, train, or recover.
 - Rarer specs and three-trait recruits appear at higher tavern levels.
 - **Starting pool: all 9 non-death-knight classes and all races of both factions, mixed in one
   company** (it's a mercenary band) **(decided 2026-11-01)**.
-- **Death knights are recruitable from Act IV** (a legacy unlock can bring them earlier in later
+- **Death knights are recruitable from the Outland act** (Act VI in the seven-act structure; the
+  owner picked "Act IV" when Outland was Act IV) (a legacy unlock can bring them earlier in later
   campaigns) **(decided 2026-11-01)**.
 
 ### Traits
@@ -190,9 +200,16 @@ Stress runs 0–200.
 
 - At 0 health a hero is **Downed** and bleeds out for 45 seconds. A battle-res, a Field Medic
   revive, or the fight ending in time saves them.
-- Survivors get a **wound**: -10% max health until healed at the Infirmary.
+- Survivors get a **wound**: -10% max health until healed at the Infirmary, **or for free by
+  sitting out one mission** **(decided 2026-11-01)**, so the roster doesn't snowball into
+  half-wounded parties.
 - A hero dies permanently if they bleed out, or go down again while wounded.
-- Their gear is lost unless recovered by a Recover the Fallen mission. Their name goes on the
+- Their **equipped gear and relics** are lost unless recovered by a Recover the Fallen mission;
+  anything in their bags goes back to the armory **(decided 2026-11-01)**.
+- **First version (decided 2026-11-01):** the hero really dies, the body stays where it fell, and
+  they can be revived within the 45-second bleed-out window; otherwise the death is permanent.
+  This is buildable in Lua. A true "kneeling at 1 health" Downed state likely needs C++ and is only
+  revisited if the first version feels wrong in play. Their name goes on the
   memorial wall with level, class, missions survived, and how they died.
 
 ### Quirks
@@ -313,8 +330,9 @@ world, so progress is something you can walk around and see.
 | Memorial Wall | Remembers the dead | Funerals relieve stress for the whole roster; fallen heroes' names grant small morale bonuses |
 | Hall of Veterans | Retired heroes | Retire a level 60+ hero for a permanent roster bonus and an heirloom |
 
-Buildings are gated by act. Level 2 upgrades unlock in Act II and level 3 in Act IV, so the hamlet
-grows alongside the campaign instead of being maxed by Act I.
+Buildings are gated by act. Level 2 upgrades unlock in Act III and level 3 in Act V (moved from
+Acts II and IV to fit seven acts), so the hamlet grows alongside the campaign instead of being
+maxed by Act I.
 
 **Town events.** After some missions, a random event fires: a traveling merchant with rare relics,
 a plague that closes the infirmary for a mission, a festival that halves stress costs, or a
@@ -324,6 +342,11 @@ stranger offering a dangerous bonus mission. These keep returns from feeling ide
 
 You play a real character who fights in the party as the fifth member, and who also runs the
 company. The commander levels with the roster, using the same mark system as heroes.
+
+**Making a commander (decided 2026-11-01):** create a fresh character of any race and class
+except death knight. Its first login sets it to level 10, gives starter gear, and starts a new
+campaign at Raven Hill. **One company per commander character**: a second character runs a
+second, separate campaign.
 
 **Commander death (decided 2026-11-01):** the commander can't die permanently by default. If you go
 down and the mission wipes, you wake up in the hamlet, wounded, with your carried loot lost. The
@@ -359,13 +382,13 @@ per return. That scarcity is what forces rotation, tough calls and a deep bench.
 
 | Currency | Earned from | Spent on |
 |---|---|---|
-| Gold | Mission rewards, curios, selling junk to the hamlet vendor | Healing, stress relief, recruits, supplies, crafting fees |
+| Gold | Mission rewards, curios, selling junk to the hamlet vendor (the only place items can be sold; monsters drop no coin) | Healing, stress relief, recruits, supplies, crafting fees |
 | Materials | Boss chests, Plunder missions, salvaging gear | Crafting and upgrading gear |
 | Renown | Completing missions (more for harder modifiers and darkness) | Building upgrades, commander skills |
 | Relics | Champion chests, altars, gate bosses, rare drops | Equipped in trinket slots |
 
 Materials are real WoW trade goods by tier (copper and linen in Act I up to saronite and
-frostweave in Act V), so no custom material items are needed.
+frostweave in Act VII), so no custom material items are needed.
 
 ### Where gear comes from
 
@@ -390,14 +413,15 @@ roll one warband affix that interacts with the roguelite systems:
 ### The shared armory
 
 - Every drop goes to a shared armory instead of being rolled for. You equip heroes from it in town.
-- An optional auto-equip upgrades setting does it for you after each mission.
+- After each mission the armory window highlights upgrades for each hero, with one "equip all
+  upgrades" button; nothing changes without your click **(decided 2026-11-01)**.
 - Items no roster class can use are auto-salvaged into materials.
 - Greedy heroes occasionally pocket an item; it shows up in their bags, and you can confiscate it
   (+15 stress for them).
 
 ### Keeping gear relevant at speed
 
-Heroes gain 2–4 levels per mission, so gear goes stale fast. Three answers:
+Heroes gain about 2 levels per main mission, so gear goes stale fast. Three answers:
 
 - **Act-tiered crafting** keeps a reliable baseline available.
 - **Tempering:** the blacksmith can move a warband affix from an old item to a new one for
@@ -440,7 +464,7 @@ heroes retired. A campaign that dies in Act II still earns something.
 ### Unlocks
 
 - **Tavern pool:** new races and rarer specs appear among recruits (for example death knights
-  before Act IV, after first clearing Act IV).
+  before Act VI, after first clearing Act VI).
 - **Trait pool:** new positive traits, and the option to ban one negative trait from rolling.
 - **Starting kit:** begin with a level 1 building, extra gold, or a starting relic.
 - **Heirloom vault:** carry up to 3 named heirlooms into a new campaign.
@@ -491,7 +515,13 @@ for the UI. Only 5–10 bots are active at once, so performance isn't a concern.
   when hired.
 - **Rules:** Lua scripts (C++ only where Lua can't reach, flagged when it happens).
 - **State:** custom `warband_*` database tables.
-- **UI:** chat commands first, then an addon talking to the server through the AIO framework.
+- **UI (decided 2026-11-01):** real windows, not text menus. Every main screen (mission board,
+  embark, tavern, roster, armory, hamlet buildings, level-up marks, memorial wall) gets a proper
+  window built with the AIO framework **in the same phase as its system**, not saved for the end.
+  Style: **classic WoW panels** (like the game's own Character and Quest Log windows), laid out
+  for clarity. Windows open three ways: talking to the hamlet NPC (tavern keeper opens the Tavern),
+  a **Warband button** near the minimap with a tabbed main menu, and chat commands
+  (`.warband roster`). A plain NPC text menu stays only as a backup if the addon is missing.
 
 ### How each system is built
 
@@ -547,7 +577,7 @@ bare) Act I; everything after deepens it.
 10. **Mission depth:** darkness and torches, modifiers, champions, curios, supplies, camping,
     retreat, mission types.
 11. **The hamlet:** buildings and upgrades, town events, Training Yard bench XP, quirks.
-12. **Loot depth and Acts II–V:** warband affixes, relics, tempering, heirlooms, all act dungeon
+12. **Loot depth and Acts II–VII:** warband affixes, relics, tempering, heirlooms, all act dungeon
     lists and gate missions, raid side missions with mod-autobalance scaling, the Icecrown Citadel
     finale.
 13. **Meta and release:** legacy unlocks, difficulty tiers, the addon UI, co-op, balance pass, and
@@ -567,7 +597,7 @@ answer that.
   happen, then allow a 45-second resurrection window before permadeath.
 - **Shared armory UI:** managing items through gossip menus is clunky. The addon solves it, but it
   comes late.
-- **Long campaigns:** shortened to 25 main missions (2026-11-01). Chronicles and the save system
+- **Long campaigns:** 35 main missions in 7 acts, about 30–35 hours (2026-11-01). Chronicles and the save system
   soften it further.
 - **Old dungeon tuning:** some classic dungeons are long and maze-like. Short and Medium lengths
   help, and any dungeon that plays badly can be dropped from the board.
@@ -580,6 +610,16 @@ answer that.
 | Commander permadeath | Off by default, with an optional Ironman mode |
 | Co-op model | Separate companies (can visit each other's hamlets) |
 | Starting tavern pool | All 9 non-DK classes, all races of both factions |
-| Death knights | Recruitable from Act IV |
-| Campaign length | 5 main missions per act (25 total), many optional side missions with no XP |
+| Death knights | Recruitable from the Outland act (Act VI) |
+| Campaign length | 7 acts of 10 levels, 5 main missions each (gate is the 5th, 35 total), plus side missions with a little XP and a threat clock |
 | Same server as Scholomance Survival? | No: Warband is its own server |
+| Gate mission | The 5th of each act's 5 main missions |
+| Side missions | About 10% of a main mission's XP; each raises the act's threat clock (harder main missions, a forced crisis at max, reset by the gate) |
+| Board | Next main mission + 2–4 side missions, refreshed after every mission |
+| Wounds | Healed at the Infirmary, or free by sitting out one mission |
+| Death's door | First version: real death + 45-second revive window, in Lua |
+| Lost on permadeath | Equipped gear and relics; bag items go back to the armory |
+| Commander | New character, any race/class except death knight, set to level 10 on first login; one company per commander |
+| Gold | Monsters drop no coin; items sell only at the hamlet vendor |
+| Armory | Suggests upgrades, "equip all upgrades" button, nothing automatic |
+| UI | Real AIO windows built with each system, classic WoW panel style; opened by hamlet NPCs, a minimap Warband button, and chat commands; NPC text menus only as a backup |
