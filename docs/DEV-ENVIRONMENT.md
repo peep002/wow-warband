@@ -68,7 +68,14 @@ Keep this list current. These are lost if the run folder is wiped.
 
 ## Starting and stopping
 
-Stop the Scholomance server first (same ports). Then authserver, then worldserver, each in its own
+**Easiest: `ServerLauncher.exe` on the Desktop** (source: `tools/server-launcher/`, rebuild with
+`tools/server-launcher/build.ps1`). Start/Stop buttons for both servers, plus "Launch WoW".
+Starting one stops the other first. Stopping = Ctrl+C in the server's console, which saves every
+player before exiting. The servers open in their own console windows (type GM commands there).
+From a script: `ServerLauncher.exe --status`, `--start warband`, `--stop scholomance`.
+(Don't call it with PowerShell's `Start-Process -Wait`: that waits for the servers to exit too.)
+
+By hand: stop the Scholomance server first (same ports). Then authserver, then worldserver, each in its own
 Terminal tab, working directory = the run folder:
 
 ```powershell
