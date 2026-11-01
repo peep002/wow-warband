@@ -1,0 +1,20 @@
+# Never commit Blizzard data or builds
+dbc/
+maps/
+vmaps/
+mmaps/
+Cameras/
+*.MPQ
+build/
+*.exe
+*.dll
+*.pdb
+
+# Local config with passwords
+*.local.json
+*.local.conf
+
+# OS junk
+Thumbs.db
+.DS_Store
+__pycache__/
