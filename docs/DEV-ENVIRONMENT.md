@@ -49,4 +49,31 @@ which only the owner types.
 
 Keep this list current. These are lost if the run folder is wiped.
 
-- (none yet)
+- Copied next to the .exe files from the Scholomance run folder: `libmysql.dll`, `libssl-3-x64.dll`,
+  `libcrypto-3-x64.dll`, `legacy.dll` (the servers refuse to start without `legacy.dll`).
+- `configs\*.conf` made from the `.conf.dist` files (2026-11-01):
+  - `worldserver.conf`, `authserver.conf`, `dbimport.conf`: databases `warband_auth`,
+    `warband_world`, `warband_characters`; `SourceDirectory` = `C:/Claude/Projects/azerothcore-warband`;
+    `MySQLExecutable` = full path to `mysql.exe`.
+  - `worldserver.conf`: `DataDir` = `C:/Claude/Projects/azerothcore/build/bin/Release/data`
+    (**reuses the Scholomance server's extracted client data**, read only; same AzerothCore base).
+    `AccountInstancesPerHour` = 1000, `CharacterCreating.MinLevelForHeroicCharacter` = 0.
+  - `modules\playerbots.conf`: `PlayerbotsDatabaseInfo` → `warband_playerbots`;
+    `Playerbots.RandomBotAutologin` = 0, `Playerbots.MinRandomBots` = 0, `Playerbots.MaxRandomBots` = 0
+    (no random world bots; heroes only).
+  - `modules\mod_ale.conf`: `ALE.TraceBack = true` (Lua errors show the line).
+- `lua_scripts\warband` is a **junction** (folder link) to `C:\Claude\Projects\Warband\lua_scripts\warband`,
+  so edits in the repo are live after `.reload ale`. Recreate with:
+  `New-Item -ItemType Junction -Path '<run folder>\lua_scripts\warband' -Target 'C:\Claude\Projects\Warband\lua_scripts\warband'`
+
+## Starting and stopping
+
+Stop the Scholomance server first (same ports). Then authserver, then worldserver, each in its own
+Terminal tab, working directory = the run folder:
+
+```powershell
+Set-Location 'C:\Claude\Projects\azerothcore-warband\build\bin\Release'; .\authserver.exe
+Set-Location 'C:\Claude\Projects\azerothcore-warband\build\bin\Release'; .\worldserver.exe
+```
+
+Stop worldserver with `server shutdown 1` at `AC>`; Ctrl+C stops authserver.

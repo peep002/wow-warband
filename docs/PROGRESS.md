@@ -10,9 +10,21 @@ running; you can group with bots and run a dungeon.
 - [x] Download the playerbots AzerothCore fork + mod-playerbots + mod-ale
       (`C:\Claude\Projects\azerothcore-warband`)
 - [x] Build it (2026-11-01)
-- [ ] Create Warband's own databases (owner runs one command with the MySQL root password)
-- [ ] Configs: own databases, random bots off, Lua on, client data
-- [ ] First start; log in, add a bot to the group, run a dungeon
+- [x] Create Warband's own databases (owner, 2026-11-01)
+- [x] Configs: own databases, random bots off, Lua on, client data (reused from the Scholomance server)
+- [x] First start (2026-11-01): databases filled, `[Warband] Lua scripts loaded.`, playerbots
+      initialized, no random bots online. Ready in about 1 minute.
+- [ ] Owner: GM account, log in, add bots with `.playerbots bot addclass`, run a dungeon
+
+## Notes from the first start
+
+- Playerbots made **50 "AddClass" accounts with 500 offline characters** on first start
+  (`Playerbots.AddClassAccountPoolSize`). `.playerbots bot addclass <class>` pulls one of them into
+  your group and sets it to your level if it's more than 3 levels off. This is a ready-made pool
+  for heroes (phase 3).
+- AddClass picks bots of **your own faction**. The design wants both factions' races in one
+  company, so phase 3 has to check playerbots' cross-faction grouping options.
+- Playerbots also opens a "command server" on port 8888 (local only, unused by us).
 - [x] Private GitHub repo: github.com/peep002/wow-warband
 
 ## What works
