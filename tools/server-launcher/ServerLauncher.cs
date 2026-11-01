@@ -1,7 +1,7 @@
 // ServerLauncher.cs
 // A small window for starting and stopping the owner's two WoW servers (Scholomance Survival and
-// Warband). Only one can run at a time because both use the same network ports, so starting one
-// cleanly stops the other first.
+// Warband). They use different ports (Scholomance: auth 3725 / world 8086, Warband: 3724 / 8085),
+// so both can run at once. Each "Play" button points the WoW client at its server first.
 //
 // "Cleanly" = the same as pressing Ctrl+C in the server's console window: the server saves every
 // online player and closes its databases before exiting (worldserver Main.cpp, SignalHandler).
@@ -22,8 +22,9 @@ using System.Windows.Forms;
 
 class Server
 {
-    public string Id, Name, RunFolder;
-    public Server(string id, string name, string runFolder) { Id = id; Name = name; RunFolder = runFolder; }
+    public string Id, Name, RunFolder, RealmList;
+    public Server(string id, string name, string runFolder, string realmList)
+    { Id = id; Name = name; RunFolder = runFolder; RealmList = realmList; }
     public string Exe(string which) { return Path.Combine(RunFolder, which + ".exe"); }
 }
 
@@ -32,8 +33,8 @@ static class Launcher
     // The servers this launcher knows about. Add a line here for a new server.
     public static readonly Server[] Servers =
     {
-        new Server("scholomance", "Scholomance Survival", @"C:\Claude\Projects\azerothcore\build\bin\Release"),
-        new Server("warband",     "Warband",              @"C:\Claude\Projects\azerothcore-warband\build\bin\Release"),
+        new Server("scholomance", "Scholomance Survival", @"C:\Claude\Projects\azerothcore\build\bin\Release", "127.0.0.1:3725"),
+        new Server("warband",     "Warband",              @"C:\Claude\Projects\azerothcore-warband\build\bin\Release", "127.0.0.1"),
     };
     public const string WowExe = @"C:\Claude\Downloads\ChromieCraft_3.3.5a\Wow.exe";
 
@@ -73,10 +74,6 @@ static class Launcher
 
     public static void Start(Server s, Action<string> log)
     {
-        foreach (Server other in Servers)
-            if (other != s && IsRunning(other))
-                Stop(other, log);
-
         if (Find(s, "authserver") == null) { log("Starting " + s.Name + " authserver..."); StartOne(s, "authserver"); Thread.Sleep(2000); }
         if (Find(s, "worldserver") == null) { log("Starting " + s.Name + " worldserver..."); StartOne(s, "worldserver"); }
         log(s.Name + " is starting. It's ready when its worldserver window shows the AC> prompt (about a minute).");
@@ -179,13 +176,13 @@ class LauncherForm : Form
         Text = "WoW Server Launcher";
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
-        ClientSize = new Size(520, 300);
+        ClientSize = new Size(616, 300);
         Font = new Font("Segoe UI", 10f);
         StartPosition = FormStartPosition.CenterScreen;
 
         var note = new Label
         {
-            Text = "Only one server can run at a time. Starting one stops the other first.",
+            Text = "Both servers can run at once. Play opens WoW on that server.",
             Location = new Point(16, 12), AutoSize = true, ForeColor = Color.DimGray,
         };
         Controls.Add(note);
@@ -203,21 +200,16 @@ class LauncherForm : Form
             stopButtons[i].Click += (o, e) => Run(log => Launcher.Stop(s, log));
             Controls.Add(startButtons[i]);
             Controls.Add(stopButtons[i]);
+            var play = new Button { Text = "Play", Location = new Point(510, y), Size = new Size(90, 36) };
+            play.Click += (o, e) => Play(s);
+            Controls.Add(play);
         }
 
         int bottom = 44 + Launcher.Servers.Length * 56;
-        var wow = new Button { Text = "Launch WoW", Location = new Point(16, bottom), Size = new Size(120, 34) };
-        wow.Click += (o, e) =>
-        {
-            try { Process.Start(new ProcessStartInfo(Launcher.WowExe) { WorkingDirectory = Path.GetDirectoryName(Launcher.WowExe) }); }
-            catch (Exception ex) { Log("Couldn't start WoW: " + ex.Message); }
-        };
-        Controls.Add(wow);
-
         logBox = new TextBox
         {
             Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical,
-            Location = new Point(16, bottom + 44), Size = new Size(488, ClientSize.Height - bottom - 56),
+            Location = new Point(16, bottom + 4), Size = new Size(584, ClientSize.Height - bottom - 16),
             BackColor = Color.White,
         };
         Controls.Add(logBox);
@@ -226,6 +218,19 @@ class LauncherForm : Form
         timer.Tick += (o, e) => Refresh_();
         timer.Start();
         Refresh_();
+    }
+
+    // Points the WoW client at this server (its realmlist.wtf), then starts WoW.
+    void Play(Server s)
+    {
+        try
+        {
+            string dir = Path.GetDirectoryName(Launcher.WowExe);
+            File.WriteAllText(Path.Combine(dir, @"Data\enUS\realmlist.wtf"), "set realmlist " + s.RealmList + "\r\n");
+            Process.Start(new ProcessStartInfo(Launcher.WowExe) { WorkingDirectory = dir });
+            Log("WoW started on " + s.Name + ".");
+        }
+        catch (Exception ex) { Log("Couldn't start WoW: " + ex.Message); }
     }
 
     void Log(string message)
