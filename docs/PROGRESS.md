@@ -2,8 +2,13 @@
 
 ## Current phase
 
-**Phase 1: Server foundation** (started 2026-11-01). Goal: AzerothCore + playerbots + Lua
-running; you can group with bots and run a dungeon.
+**Phase 2: Hamlet lockdown and mission teleport** (next; plan proposed 2026-11-01, waiting for
+the owner's OK).
+
+## Phase 1: Server foundation — DONE (2026-11-01)
+
+AzerothCore + playerbots + Lua running; the owner grouped with four AddClass bots and ran a
+dungeon (in-game test passed 2026-11-01).
 
 - [x] Project folder and git repo (`C:\Claude\Projects\Warband`)
 - [x] Design converted to `docs/warband-design.md`, open decisions answered
@@ -14,7 +19,7 @@ running; you can group with bots and run a dungeon.
 - [x] Configs: own databases, random bots off, Lua on, client data (reused from the Scholomance server)
 - [x] First start (2026-11-01): databases filled, `[Warband] Lua scripts loaded.`, playerbots
       initialized, no random bots online. Ready in about 1 minute.
-- [ ] Owner: GM account, log in, add bots with `.playerbots bot addclass`, run a dungeon
+- [x] Owner: GM account, log in, add bots with `.playerbots bot addclass`, run a dungeon (passed)
 
 ## Notes from the first start
 
@@ -29,7 +34,9 @@ running; you can group with bots and run a dungeon.
 
 ## What works
 
-Nothing yet.
+- The Warband server starts in about a minute with its own databases, Lua scripts and playerbots.
+- Bots join your group with `.playerbots bot addclass <class>`, match your level, and fight and
+  heal in dungeons.
 
 ## Known issues
 
