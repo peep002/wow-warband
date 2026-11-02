@@ -222,6 +222,10 @@ dungeon (in-game test passed 2026-11-01).
 - Shadowfang Keep's Medium and Long runs need the courtyard door opened by talking to the
   prisoner after Rethilgore (Sorcerer Ashcrombe / Deathstalker Adamant); the Deadmines' gate needs
   the cannon used on the big door. The commander has to do those by hand; bots won't.
+- No food, water, ammo or reagents for the commander until the Provisioner and supplies (phase 10;
+  owner's choice, no free stopgap). Only looted consumables. Hunter commanders start with no ammo;
+  hunter heroes probably run dry too (playerbots' top-ups are off), not checked yet. Heroes eat and
+  drink for free (playerbots' `food` cheat).
 - Six traits do nothing yet (they need stress, darkness, supplies or chests); their tooltips say so.
 - Coward uses a plain "feared" state: the hero runs in a random direction, possibly into another pack.
 - Clumsy and Hothead only pull monsters the hero can see; in twisty caves that's sometimes nobody.
@@ -264,6 +268,7 @@ dungeon (in-game test passed 2026-11-01).
 | 2026-11-01 | **Stalwart Shield** = +10% threat only | "Never loses aggro to a single crit" is what extra threat does; there's no separate crit rule to hook |
 | 2026-11-01 | **Greedy**'s pocketed items come back to the armory when that hero dies for good | Same as their bag gear; the loss stings but isn't forever |
 | 2026-11-01 | Glass Jaw covers melee and ranged crits, not spell crits | The server has no working "spell crit damage taken" aura; most dungeon damage is melee |
+| 2026-11-01 | **No free rations before phase 10**: food, water, ammo and reagents wait for the Provisioner and mission supplies | Owner's choice; keeps the closed economy as designed |
 | 2026-11-01 | Custom spell ids for Warband: 102000-102099 | Like the Scholomance project: a 9100000+ spell id would make the server reserve room for 9 million spells |
 | 2026-11-01 | **Materials are one number for now**, not real trade-good items; looted trade goods add 1 each | The design wants real trade goods by tier for crafting; that only matters once the blacksmith exists (phase 11/12), where we'll revisit it |
 | 2026-11-01 | Selling turns vendor price into company gold at 1/400 (a level-15 green ~15 gold) | Company gold is counted in whole "gold pieces" sized for mission rewards; real vendor prices would be tiny |
