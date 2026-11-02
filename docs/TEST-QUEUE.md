@@ -1,6 +1,7 @@
 # In-game tests waiting for the owner
 
-Tests the bot can't do (it can't see windows, walk or fight). Do them in one sitting when you're at
+Tests the bot can't do (it can't see windows, walk or fight). `docs/TEST-SESSION.md` has tests 2-6 as one
+ordered walkthrough for a sitting; keep both in step when adding tests. Do them in one sitting when you're at
 the gaming PC, then report back what you saw. Results get recorded at the bottom of each test.
 
 ## Test 2: the hamlet and the first mission (phase 2)
