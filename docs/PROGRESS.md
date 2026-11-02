@@ -2,9 +2,35 @@
 
 ## Current phase
 
-**Phase 4: Mission XP and Act I** — built 2026-11-01, automated tests 82/82 (with the restart
-test), **waiting for the owner's in-game test** (`docs/TEST-QUEUE.md`, test 4). In-game tests 2
-and 3 are also still queued.
+**Phase 5: Death's door and permadeath** — built 2026-11-01, automated tests 117/117 (with the
+restart test), **waiting for the owner's in-game test** (`docs/TEST-QUEUE.md`, test 5). In-game
+tests 2-4 are also still queued.
+
+- [x] Death's door (`wb_death.lua`), first version as decided: on a mission, someone at 0 health is
+      Downed; their body can be saved for 45 s by a resurrection spell, or by the fight ending
+      (nobody in the party in combat for 3 s, and down at least 3 s), which brings them back at 30%
+- [x] A saved hero is **wounded** (-10% max health, shown as an aura) until treated for gold or
+      after sitting out a mission
+- [x] **Permadeath**: a hero who bleeds out, or goes down while wounded, dies for good: off the
+      roster, onto the **memorial wall** (`warband_memorial`: name, level, class, missions survived,
+      how they died), bot sent away. Their gear stays on the body for a future Recover the Fallen
+- [x] **Commander**: can't die for good. Bleeds out = the mission fails, they wake up in the hamlet
+      wounded, heroes still down are carried home wounded. **Wipe** (everyone down at once) = the
+      mission fails and every downed hero is lost. A failed mission gives survivors 25% XP
+- [x] A downed ghost can't reclaim its corpse or use a spirit healer; dead heroes can't come back
+- [x] Anyone still down when a mission ends well is carried home (revived, wounded)
+- [x] Treatment: `.warband treat NAME|me`, and Treat buttons in the window (20 + 2 gold per level)
+- [x] Window: wounds on hero cards with a Treat button, your own wound in the Roster header,
+      new **Memorial** tab
+- [x] **Fixed a bug from phase 4**: the 10% kill-XP cut never actually applied (the error wrapper
+      `Log.Safe` crashed on Lua 5.2's missing `unpack` and lost every handler's answer). Tests now
+      check the XP really gained.
+- [ ] Owner: in-game test
+
+## Phase 4: Mission XP and Act I — built 2026-11-01
+
+Automated tests passed (82/82; the kill-XP check was too weak, see phase 5); the owner's in-game
+test (`docs/TEST-QUEUE.md`, test 4) is waiting.
 
 - [x] Act I contracts (`Config.dungeons`): Ragefire Chasm, Wailing Caverns, the Deadmines,
       Shadowfang Keep, each in Short / Medium / Long (the Deadmines' Long run is the gate):
@@ -110,8 +136,10 @@ dungeon (in-game test passed 2026-11-01).
 
 ## Known issues
 
-- **Commander death isn't handled yet** (phase 5, death's door). For now a dead commander
-  releases and resurrects the normal way; the leash leaves dead players alone.
+- Death outside missions (e.g. in the hamlet) isn't special: release and resurrect the normal way.
+- Ironman (commander death ends the campaign) isn't built yet (difficulty tiers, phase 13).
+- A dead hero's bag items should go to the armory: comes with the armory (phase 6).
+- The wound aura's tooltip says "Wither Strike" (the spell it borrows); the window says "Wounded".
 - Monsters still drop coin (the closed economy's "no monster coin" comes with the economy, phase 6).
 - Starter gear for new commanders isn't given yet: they keep their level-1 clothes (phase 6, armory).
 - Heroes who sit out a mission get no XP yet (the Training Yard's bench XP is phase 11).
@@ -147,6 +175,10 @@ dungeon (in-game test passed 2026-11-01).
 | 2026-11-01 | **Level cap per act** (Act I: 20) until the gate is beaten | My addition: stops side missions and repeats from over-levelling an act (one line in `Config.acts` to change) |
 | 2026-11-01 | Mission ends at a target boss per length (table above); Wailing Caverns' Long ends at Verdan, not Mutanus | Mutanus only appears after an escort event bots can't be relied on for |
 | 2026-11-01 | The board offers 3 main missions for now | Side missions (the other 2-4 slots) come with mission types in phase 10 |
+| 2026-11-01 | "The fight ending saves them" = nobody alive in the party in combat for 3 s (and down at least 3 s) | The design names the rule but not how to detect it; numbers in `Config.death` |
+| 2026-11-01 | A commander who bleeds out fails the mission (wakes up home, wounded); the commander isn't wounded by being downed and saved | The design only covers the wipe case for the commander |
+| 2026-11-01 | The commander's wound heals after the next mission that doesn't fail, or with treatment | A commander can't "sit out" a mission like a hero |
+| 2026-11-01 | Wound = the client's "Wither Strike" aura (-10% max health) made permanent | A ready-made spell the client can show; a custom "Wounded" spell would need client patches |
 | 2026-11-01 | Raven Hill's own NPCs (Jitters, Bliztik, the invisible Unseen) are hidden | Jitters is Alliance and would attack Horde commanders; Bliztik is a vendor (closed economy) |
 | 2026-11-01 | Hub: Raven Hill, Duskwood | Design's proposal |
 | 2026-11-01 | Commander can't die for good; optional Ironman mode | Design's recommendation |
@@ -176,4 +208,5 @@ dungeon (in-game test passed 2026-11-01).
 | `.wbdev` probe: state read-out, jump next to an NPC, kill the mission boss, wander off | No walking or fighting needed in tests | |
 | Lua errors in hooks go to `warband_log` (`Log.Safe`) | Errors readable without the worldserver console | Wrap more handlers as they're written |
 | Restart test drives `ServerLauncher.exe --stop/--start` and waits for "ready..." | Restart persistence checked automatically | |
+| Phase 5: death tests with `.wbdev down / bleed / clear / revive` (2026-11-01) | Deaths, saves, wipes in seconds instead of real fights | Lesson: check the real effect (XP gained, alive), not just what the script computed: a weak check hid the kill-XP bug for a phase |
 | Phase 3 scenario: tavern, hiring, calling heroes, a mission with a hero (2026-11-01) | Whole suite 48 checks in about 5 minutes | Switch on the parallel lanes from the Scholomance bot (already in `wb_testbot.py`) once a run passes ~8 minutes |

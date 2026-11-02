@@ -28,7 +28,7 @@ local CLASS_DEATH_KNIGHT = 6
 local cache = {}   -- [guid] = company table
 local readyHandlers = {}
 
-local FIELDS = { "act", "progress", "gold", "renown", "materials", "threat", "tier", "ironman", "state" }
+local FIELDS = { "act", "progress", "gold", "renown", "materials", "threat", "tier", "ironman", "state", "wounded" }
 
 local function Load(guid)
     local q = CharDBQuery("SELECT `" .. table.concat(FIELDS, "`, `") .. "` FROM `warband_company` WHERE `guid` = " .. guid)

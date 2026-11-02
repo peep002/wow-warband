@@ -11,6 +11,10 @@
 --   Roster.List(player)            the company's heroes (alive first), each a table
 --   Roster.Get(player, guid)       one hero of this company, or nil
 --   Roster.OwnerOf(heroGuid)       the commander guid a hero belongs to, or nil
+--   Roster.SetWounded(player, h, bool) / Roster.Treat(player, guid or 0 = commander)
+--   Roster.ShowWound(unit, bool)   put the wound's -10% health aura on (or off) a character
+--   Roster.Kill(player, guid, cause, missionKey)   permanent death: memorial wall, bot sent away
+--   Roster.Memorial(player)        the company's fallen, newest first
 --   Roster.Alive(player)           how many heroes are alive
 --   Roster.PartyHeroes(player)     heroes that are online in the commander's group
 --   Roster.Call(player, guid)      returns ok, message
@@ -64,14 +68,36 @@ local function LinkAccount(account)
 end
 
 local COLUMNS = "h.`guid`, c.`name`, c.`class`, c.`race`, c.`level`, h.`spec_no`, h.`role`, h.`trait_pos`, "
-    .. "h.`trait_neg`, h.`backstory`, h.`status`, h.`in_party`, h.`set_up`, h.`start_level`, h.`missions`"
+    .. "h.`trait_neg`, h.`backstory`, h.`status`, h.`in_party`, h.`set_up`, h.`start_level`, h.`missions`, h.`wounded`"
 
 local function ReadHero(q)
     return { guid = q:GetUInt32(0), name = q:GetString(1), class = q:GetUInt32(2), race = q:GetUInt32(3),
              level = q:GetUInt32(4), spec_no = q:GetUInt32(5), role = q:GetString(6), trait_pos = q:GetString(7),
              trait_neg = q:GetString(8), backstory = q:GetString(9), status = q:GetString(10),
              in_party = q:GetUInt32(11) == 1, set_up = q:GetUInt32(12) == 1, start_level = q:GetUInt32(13),
-             missions = q:GetUInt32(14) }
+             missions = q:GetUInt32(14), wounded = q:GetUInt32(15) == 1 }
+end
+
+-- Wounds -------------------------------------------------------------------------------------------
+-- A wound is the "Wither Strike" aura (-10% max health) made to last until healed. Auras vanish on
+-- death and logout, so it's put back on login and after every revive.
+
+function Roster.ShowWound(unit, wounded)
+    local spell = Config.death.wound_spell
+    if not wounded then
+        unit:RemoveAura(spell)
+        return
+    end
+    if unit:IsDead() or unit:HasAura(spell) then return end
+    local aura = unit:AddAura(spell, unit)
+    if aura then
+        aura:SetMaxDuration(-1)
+        aura:SetDuration(-1)
+    end
+end
+
+function Roster.TreatCost(level)
+    return Config.infirmary.cost_base + Config.infirmary.cost_per_level * level
 end
 
 local function Load(commanderGuid)
@@ -216,6 +242,82 @@ function Roster.Add(player, f)
     return Roster.Get(player, f.guid)
 end
 
+function Roster.SetWounded(player, h, wounded)
+    h.wounded = wounded
+    Save(h, { "wounded" })
+    local bot = GetPlayerByGUID(GetPlayerGUID(h.guid))
+    if bot then Roster.ShowWound(bot, wounded) end
+    Log.Event(player:GetGUIDLow(), wounded and "hero_wounded" or "hero_healed", h.name)
+    Changed(player)
+end
+
+-- Treat a wound for gold: guid of a hero, or 0 for the commander. Only in the hamlet.
+function Roster.Treat(player, guid)
+    local c = Company.Get(player)
+    if not c then return false, "Only a commander can pay for treatment." end
+    if c.state ~= 0 then return false, "Wounds are treated in the hamlet." end
+    local name, level, wounded
+    local h = guid ~= 0 and Roster.Get(player, guid)
+    if guid == 0 then
+        name, level, wounded = "Your wound", player:GetLevel(), c.wounded == 1
+    elseif h and h.status == "alive" then
+        name, level, wounded = h.name .. "'s wound", h.level, h.wounded
+    else
+        return false, "That hero isn't on your roster."
+    end
+    if not wounded then return false, "There's no wound to treat." end
+    local cost = Roster.TreatCost(level)
+    if c.gold < cost then return false, string.format("Treatment costs %d gold; the company has %d.", cost, c.gold) end
+    c.gold = c.gold - cost
+    if guid == 0 then
+        c.wounded = 0
+        Roster.ShowWound(player, false)
+        Log.Event(c.guid, "commander_healed", "treated")
+    end
+    Company.Save(player)
+    if h then Roster.SetWounded(player, h, false) else Changed(player) end
+    return true, string.format("%s is treated (%d gold).", name, cost)
+end
+
+-- A hero dies for good: off the roster, onto the memorial wall. Their gear stays on the body (a
+-- Recover the Fallen mission can bring it back later). The bot is sent away after a few seconds.
+function Roster.Kill(player, guid, cause, missionKey)
+    local h = Roster.Get(player, guid)
+    if not h or h.status ~= "alive" then return end
+    local bot = GetPlayerByGUID(GetPlayerGUID(guid))
+    local level = bot and bot:GetLevel() or h.level
+    h.status, h.in_party, h.wounded = "dead", false, false
+    Save(h, { "status", "in_party", "wounded" })
+    CharDBQuery(string.format(
+        "INSERT INTO `warband_memorial` (`company`, `guid`, `name`, `class`, `race`, `level`, `missions`, `cause`, `mission_key`) "
+        .. "VALUES (%d, %d, '%s', %d, %d, %d, %d, '%s', '%s')",
+        player:GetGUIDLow(), guid, h.name, h.class, h.race, level, h.missions, cause:gsub("'", "\\'"), missionKey or ""))
+    Log.Event(player:GetGUIDLow(), "hero_died", h.name .. ": " .. cause)
+    player:SendBroadcastMessage(string.format("|cffff2020[Warband] %s has fallen.|r %s Their name goes on the memorial wall.",
+        h.name, cause))
+    local pguid = player:GetGUID()
+    CreateLuaEvent(function()
+        local p = GetPlayerByGUID(pguid)
+        local mgr = p and BotMgr(p)
+        if mgr and GetPlayerByGUID(GetPlayerGUID(guid)) then mgr:LogoutPlayerBot(GetPlayerGUID(guid)) end
+    end, Config.death.logout_seconds * 1000, 1)
+    Changed(player)
+end
+
+-- The memorial wall: everyone this company has lost, newest first.
+function Roster.Memorial(player)
+    local list = {}
+    local q = CharDBQuery("SELECT `name`, `class`, `race`, `level`, `missions`, `cause`, DATE_FORMAT(`died`, '%Y-%m-%d') "
+        .. "FROM `warband_memorial` WHERE `company` = " .. player:GetGUIDLow() .. " ORDER BY `id` DESC")
+    if q then
+        repeat
+            list[#list + 1] = { name = q:GetString(0), class = q:GetUInt32(1), race = q:GetUInt32(2), level = q:GetUInt32(3),
+                                missions = q:GetUInt32(4), cause = q:GetString(5), died = q:GetString(6) }
+        until not q:NextRow()
+    end
+    return list
+end
+
 -- A hero logs in (as a bot) -------------------------------------------------------------------
 
 local function SetUp(bot, h)
@@ -235,6 +337,7 @@ local function OnHeroLogin(bot)
     if not h.set_up then SetUp(bot, h) end
     -- Wait a moment for the login to finish, then stand next to the commander.
     bot:RegisterEvent(function(_, _, _, b)
+        Roster.ShowWound(b, h.wounded)
         local commander = GetPlayerByGUID(GetPlayerGUID(commanderGuid))
         if commander then
             b:Teleport(commander:GetMapId(), commander:GetX() + 1.5, commander:GetY() + 1.5, commander:GetZ(), commander:GetO())
@@ -271,6 +374,7 @@ Company.OnReady(function(player, c)
     CreateLuaEvent(function()
         local p = GetPlayerByGUID(guid)
         if not p then return end
+        Roster.ShowWound(p, c.wounded == 1)
         for _, h in pairs(heroes[c.guid]) do
             if h.in_party and h.status == "alive" and not GetPlayerByGUID(GetPlayerGUID(h.guid)) then LogIn(p, h) end
         end

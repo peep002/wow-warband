@@ -14,7 +14,9 @@
 --   Missions.SendHome(player)     teleport the commander and their bots to the hamlet
 --   Missions.PartyBots(player)    the bots in the commander's group
 --   Missions.OnChange(fn)         fn(player) whenever the board or the mission state changes
---   Missions.OnFinish(fn)         fn(player, status) after a mission ends ("done" or "abandoned")
+--   Missions.OnFinish(fn)         fn(player, status) after a mission ends ("done", "abandoned", "failed")
+--   Missions.Fail(player)         the mission is lost (wipe, or the commander bled out): home, little XP
+--   Missions.ActiveCommanders()   guids of commanders out on a mission right now
 --
 -- Use from other files:  local Missions = require("wb_missions")
 
@@ -43,6 +45,12 @@ end
 
 function Missions.Active(player)
     return player and active[player:GetGUIDLow()]
+end
+
+function Missions.ActiveCommanders()
+    local list = {}
+    for guid in pairs(active) do list[#list + 1] = guid end
+    return list
 end
 
 function Missions.PartyBots(player)
@@ -92,14 +100,16 @@ local function Finish(player, status)
         Company.Save(player)
     end
     -- Experience for everyone who went; heroes who came home from a completed mission count it.
-    local worth = m.def.xp * (status == "done" and 1 or Config.xp.abandoned)
+    local worth = m.def.xp * (status == "done" and 1 or (status == "failed" and Config.xp.failed or Config.xp.abandoned))
     local gained = { player:GetName() .. " +" .. XP.Grant(player, worth) }
     for _, hero in ipairs(Roster.PartyHeroes(player)) do
-        gained[#gained + 1] = hero:GetName() .. " +" .. XP.Grant(hero, worth)
-        if status == "done" then
+        local h = Roster.Get(player, hero:GetGUIDLow())
+        if hero:IsAlive() and h and h.status == "alive" then
+            gained[#gained + 1] = hero:GetName() .. " +" .. XP.Grant(hero, worth)
+        end
+        if status == "done" and h and h.status == "alive" then
             CharDBExecute("UPDATE `warband_heroes` SET `missions` = `missions` + 1 WHERE `guid` = " .. hero:GetGUIDLow())
-            local h = Roster.Get(player, hero:GetGUIDLow())
-            if h then h.missions = h.missions + 1 end
+            h.missions = h.missions + 1
         end
     end
     player:SendBroadcastMessage(string.format("|cffffd100[Warband]|r Experience: about %.1f levels' worth each (%s).",
@@ -161,6 +171,14 @@ function Missions.Embark(player, key)
     TeleportParty(player, def.map, def.entrance)
     player:SendBroadcastMessage(string.format("|cffffd100[Warband]|r Contract: %s. Objective: %s.", def.name, def.objective))
     Changed(player)
+    return true
+end
+
+function Missions.Fail(player)
+    if not Missions.Active(player) then return false end
+    player:SendBroadcastMessage("|cffff2020[Warband] The mission has failed.|r The survivors drag themselves back to "
+        .. Config.hub.name .. ".")
+    Finish(player, "failed")
     return true
 end
 

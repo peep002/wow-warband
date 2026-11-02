@@ -2,7 +2,7 @@
 -- Server half of the Warband window (the window itself is wb_ui_client.lua, which AIO sends to
 -- each player's game client). This file decides what the window shows and checks every click
 -- again, because a client can send anything.
---   * Tabs: Missions, Roster, Tavern (Armory and Hamlet come later).
+--   * Tabs: Missions, Roster, Tavern, Memorial (Armory and Hamlet come later).
 --   * Opens from: Sergeant Marlow (missions), Maude Ashby (tavern), the minimap button, and
 --     chat commands (.warband, .warband roster, .warband tavern).
 --   * Marlow and Maude also have plain menus with the same choices, and the chat commands work
@@ -70,7 +70,8 @@ local function Build(player)
                    mainsBeforeGate = act.mains_before_gate, levelCap = act.max_level, gold = c.gold, renown = c.renown,
                    materials = c.materials, onMission = c.state ~= 0, offers = {}, party = {}, roster = {}, recruits = {},
                    slots = Config.heroes.roster_slots, alive = Roster.Alive(player), maxParty = Config.heroes.max_party,
-                   minParty = Config.heroes.min_party, foundingLeft = Tavern.FoundingLeft(player) }
+                   minParty = Config.heroes.min_party, foundingLeft = Tavern.FoundingLeft(player),
+                   wounded = c.wounded == 1, treatCost = Roster.TreatCost(player:GetLevel()), memorial = {} }
     for _, key in ipairs(Missions.Offers(player)) do data.offers[#data.offers + 1] = MissionData(key) end
     local m = Missions.Active(player)
     if m then data.active = MissionData(m.key) end
@@ -79,8 +80,13 @@ local function Build(player)
     end
     for _, h in ipairs(Roster.List(player)) do
         local p = Person(h)
-        p.status, p.inParty, p.missions = h.status, h.in_party, h.missions
+        p.status, p.inParty, p.missions, p.wounded, p.treatCost = h.status, h.in_party, h.missions, h.wounded,
+            Roster.TreatCost(h.level)
         data.roster[#data.roster + 1] = p
+    end
+    for _, f in ipairs(Roster.Memorial(player)) do
+        data.memorial[#data.memorial + 1] = { name = f.name, class = f.class, level = f.level, missions = f.missions,
+            race = Config.race_names[f.race] or "?", className = Config.class_names[f.class] or "?", cause = f.cause, died = f.died }
     end
     for _, r in ipairs(Tavern.Offers(player)) do
         local p = Person(r)
@@ -137,6 +143,7 @@ AIO.AddHandlers("Warband", {
         Update(player)
     end,
     Call = Act(Roster.Call),
+    Treat = Act(Roster.Treat),
     Send = Act(Roster.Send),
     Hire = Act(Tavern.Hire),
 })
@@ -157,7 +164,22 @@ local function PrintRoster(player)
     for _, h in ipairs(list) do
         player:SendBroadcastMessage(string.format("  %s - level %d %s %s (%s), %s, %d missions", h.name, h.level,
             SpecOf(h.class, h.spec_no).name, Config.class_names[h.class] or "?", h.role,
-            h.status ~= "alive" and h.status or (h.in_party and "in your party" or "in the barracks"), h.missions))
+            h.status ~= "alive" and h.status or (h.in_party and "in your party" or "in the barracks"), h.missions)
+            .. (h.wounded and string.format(", |cffff3333wounded|r (treat: %d gold)", Roster.TreatCost(h.level)) or ""))
+    end
+    local c = Company.Get(player)
+    if c.wounded == 1 then
+        player:SendBroadcastMessage(string.format("  You are |cffff3333wounded|r (treat: %d gold, .warband treat me).",
+            Roster.TreatCost(player:GetLevel())))
+    end
+end
+
+local function PrintMemorial(player)
+    local list = Roster.Memorial(player)
+    player:SendBroadcastMessage("|cffffd100[Warband] Memorial wall|r" .. (#list == 0 and ": nobody yet." or ":"))
+    for _, f in ipairs(list) do
+        player:SendBroadcastMessage(string.format("  %s, level %d %s, %d missions. %s (%s)", f.name, f.level,
+            Config.class_names[f.class] or "?", f.missions, f.cause, f.died))
     end
 end
 
@@ -176,6 +198,13 @@ local COMMANDS = {
     [""] = function(player) UI.Show(player) end,
     roster = function(player) PrintRoster(player); UI.Show(player, "roster") end,
     tavern = function(player) PrintTavern(player); UI.Show(player, "tavern") end,
+    memorial = function(player) PrintMemorial(player); UI.Show(player, "memorial") end,
+    treat = function(player, arg)
+        if arg:lower() == "me" or arg == "" then return Reply(player, Roster.Treat(player, 0)) end
+        local h = FindByName(Roster.List(player), arg)
+        if not h then return Reply(player, false, "No hero called '" .. arg .. "' on your roster.") end
+        Reply(player, Roster.Treat(player, h.guid))
+    end,
     abandon = function(player) Reply(player, Missions.Abandon(player)) end,
     hire = function(player, arg)
         local r = FindByName(Tavern.Offers(player), arg)
@@ -201,8 +230,8 @@ RegisterPlayerEvent(PLAYER_EVENT_ON_COMMAND, Log.Safe("ui command", function(eve
     local sub, arg = rest:match("^(%S*)%s*(.*)$")
     local fn = COMMANDS[(sub or ""):lower()]
     if not fn then
-        Reply(player, false, "Commands: .warband, .warband roster, .warband tavern, .warband hire NAME, "
-            .. ".warband call NAME, .warband send NAME, .warband abandon")
+        Reply(player, false, "Commands: .warband, .warband roster, .warband tavern, .warband memorial, .warband hire NAME, "
+            .. ".warband call NAME, .warband send NAME, .warband treat NAME|me, .warband abandon")
         return false
     end
     if not Company.IsCommander(player) then

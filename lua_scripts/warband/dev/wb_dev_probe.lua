@@ -7,7 +7,11 @@
 --   .wbdev state        commander?, level, map, position, distance to the hamlet, company state,
 --                       running mission, bots in the group
 --   .wbdev roster       every hero: name, class, level, in party?, online?, missions, status,
---                       unspent talent points (-1 when offline)
+--                       unspent talent points (-1 when offline), wounded?, alive?; commander wounded?
+--   .wbdev down NAME|me [hold]   kill them on the spot (hold: no fight-is-over rescue for them)
+--   .wbdev bleed NAME|me run out their bleed-out clock now
+--   .wbdev clear        kill every hostile monster within 100 yards
+--   .wbdev downed       who's downed in your party, with seconds left
 --   .wbdev tavern       every recruit: name, role, level, cost, founding?; free founding hires left
 --   .wbdev board [refresh|KEY,KEY]  the board's contracts (or deal new ones, or set them)
 --   .wbdev progress N   set the act's main-mission count
@@ -47,18 +51,86 @@ function probes.state(player)
         player:GetItemCount(Config.lockdown.hearthstone)))
 end
 
--- One line per hero: name:class:level:in_party(0/1):online(0/1):missions:status
+-- One entry per hero: name:class:level:in_party(0/1):online(0/1):missions:status:talents:wounded(0/1):alive(0/1)
 function probes.roster(player)
     local Roster = require("wb_roster")
     local list, parts, party = Roster.List(player), {}, 0
     for _, h in ipairs(list) do
         local online = GetPlayerByGUID(GetPlayerGUID(h.guid))
         if h.in_party then party = party + 1 end
-        parts[#parts + 1] = string.format("%s:%d:%d:%d:%d:%d:%s:%d", h.name, h.class, online and online:GetLevel() or h.level,
-            h.in_party and 1 or 0, online and 1 or 0, h.missions, h.status, online and online:GetFreeTalentPoints() or -1)
+        parts[#parts + 1] = string.format("%s:%d:%d:%d:%d:%d:%s:%d:%d:%d", h.name, h.class,
+            online and online:GetLevel() or h.level, h.in_party and 1 or 0, online and 1 or 0, h.missions, h.status,
+            online and online:GetFreeTalentPoints() or -1, h.wounded and 1 or 0, (online and online:IsAlive()) and 1 or 0)
     end
-    Out(player, string.format("heroes=%d alive=%d party=%d list=%s", #list, Roster.Alive(player), party,
-        #parts > 0 and table.concat(parts, ",") or "none"))
+    local c = Company.Get(player)
+    Out(player, string.format("heroes=%d alive=%d party=%d cwounded=%d list=%s", #list, Roster.Alive(player), party,
+        c.wounded, #parts > 0 and table.concat(parts, ",") or "none"))
+end
+
+-- Death's door. "who" = a hero's name, or "me".
+local function Who(player, who)
+    if who:lower() == "me" then return player end
+    for _, h in ipairs(require("wb_roster").List(player)) do
+        if h.name:lower() == who:lower() then return GetPlayerByGUID(GetPlayerGUID(h.guid)) end
+    end
+end
+
+-- ".wbdev down NAME|me [hold]": kill them on the spot; "hold" stops the fight-is-over rescue for them.
+function probes.down(player, arg)
+    local who, hold = arg:match("^(%S+)%s*(%S*)$")
+    local unit = who and Who(player, who)
+    if not unit or unit:IsDead() then return Out(player, "down=0") end
+    unit:SetHealth(1)
+    player:Kill(unit, false)
+    if hold == "hold" then
+        -- The death check runs every second: wait for it to see the death, then hold.
+        local guid = unit:GetGUIDLow()
+        CreateLuaEvent(function() require("wb_death").Hold(guid) end, 1500, 1)
+    end
+    Out(player, "down=1")
+end
+
+-- ".wbdev revive NAME|me": ResurrectPlayer at 30%, reporting alive/health right after and 2 s later.
+function probes.revive(player, arg)
+    local unit = Who(player, arg)
+    if not unit then return Out(player, "revive=none") end
+    unit:ResurrectPlayer(0.3)
+    Out(player, string.format("revive=1 alive=%d hp=%d", unit:IsAlive() and 1 or 0, unit:GetHealth()))
+    local guid = unit:GetGUID()
+    CreateLuaEvent(function()
+        local u = GetPlayerByGUID(guid)
+        if u then Out(player, string.format("later alive=%d hp=%d", u:IsAlive() and 1 or 0, u:GetHealth())) end
+    end, 2000, 1)
+end
+
+-- Kill every hostile monster within 100 yards (a quiet spot for death tests).
+function probes.clear(player)
+    local n = 0
+    for _, cr in ipairs(player:GetCreaturesInRange(100, 0, 1, 1)) do
+        player:Kill(cr, false)
+        n = n + 1
+    end
+    Out(player, "cleared=" .. n)
+end
+
+-- ".wbdev bleed NAME|me": their bleed-out clock runs out now.
+function probes.bleed(player, arg)
+    local unit = Who(player, arg)
+    if not unit then return Out(player, "bleed=0") end
+    require("wb_death").Expire(unit:GetGUIDLow())
+    Out(player, "bleed=1")
+end
+
+-- Who's downed in your party, with seconds left.
+function probes.downed(player)
+    local Death, parts = require("wb_death"), {}
+    local list = { player }
+    for _, b in ipairs(require("wb_roster").PartyHeroes(player)) do list[#list + 1] = b end
+    for _, u in ipairs(list) do
+        local st, left = Death.State(u)
+        if st == "downed" then parts[#parts + 1] = u:GetName() .. ":" .. left end
+    end
+    Out(player, "downed=" .. (#parts > 0 and table.concat(parts, ",") or "none"))
 end
 
 -- name:role:level:cost:founding(0/1) for each recruit
@@ -109,8 +181,9 @@ function probes.killnear(player, arg)
         if not bestDist or d < bestDist then best, bestDist = cr, d end
     end
     if not best then return Out(player, "killed=0") end
-    player:Kill(best, false)
-    Out(player, "killed=1")
+    -- Real damage, not Kill(): the server only rewards XP when players did enough of the damage.
+    player:DealDamage(best, best:GetMaxHealth() * 2)
+    Out(player, "killed=" .. (best:IsDead() and 1 or 0))
 end
 
 -- Mission XP by hand: ".wbdev grant 2" = two levels' worth.

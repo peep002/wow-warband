@@ -28,7 +28,7 @@ function Log.Safe(name, fn)
             Log.Event(0, "lua_error", name .. ": " .. tostring(result[2]))
             return nil
         end
-        return unpack(result, 2)
+        return (table.unpack or unpack)(result, 2) -- the server's Lua 5.2 only has table.unpack
     end
 end
 

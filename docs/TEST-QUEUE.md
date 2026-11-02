@@ -104,3 +104,28 @@ Use the company from test 3 (or a new one with 4 heroes hired).
 Tell me how the pace feels: too fast, too slow, too hard at level 10?
 
 **Result:** (waiting)
+
+## Test 5: death's door (phase 5)
+
+Heroes can now die for good. Use a company you don't mind losing heroes from.
+
+1. Embark with two or three heroes and fight. When a hero dies:
+   - **Expect:** an orange "`NAME` is down! 45 seconds to save them" line. Their body stays.
+2. Finish the fight (or let a bot healer resurrect them).
+   - **Expect:** a few seconds after the fighting stops, the downed hero stands up at about a third
+     of their health: "`NAME` is saved, but wounded". They have a "Wither Strike" debuff (that's the
+     wound: -10% max health), and their Roster card says **Wounded** with a **Treat** button.
+3. If a wounded hero goes down again, or someone stays down for 45 seconds during a long fight:
+   - **Expect:** a red "`NAME` has fallen." line; they disappear a few seconds later. The **Memorial**
+     tab shows them with their level, class, missions survived, and how they died.
+4. If you die and nobody saves you within 45 seconds, or the whole party goes down:
+   - **Expect:** "The mission has failed", and you wake up in Raven Hill, wounded (the Roster header
+     says "You are wounded" with a Treat button). In a wipe, every hero who was down is lost.
+5. Treat a wound from the Roster tab (costs 20 gold + 2 per level).
+6. Leave a wounded hero in the barracks for one mission: their wound is gone afterwards.
+7. While dead on a mission, try releasing your spirit and running back: you can't revive at your
+   corpse or at the spirit healer.
+
+Tell me if dying feels fair, and whether 45 seconds and the "fight is over" rescue feel right.
+
+**Result:** (waiting)

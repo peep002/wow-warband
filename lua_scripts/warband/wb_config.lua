@@ -143,6 +143,26 @@ Config.xp = {
     gate      = 3.0,      -- a completed gate mission
     side      = 0.10,     -- side missions (phase 10) give this share of a main mission's XP
     abandoned = 0.25,     -- an abandoned (retreated) mission gives this share
+    failed    = 0.25,     -- a failed mission (wipe, or the commander bled out) gives survivors this share
+}
+
+-- Death's door ---------------------------------------------------------------------------------
+-- On a mission, someone at 0 health is Downed: their body stays, and they bleed out after
+-- bleed_seconds unless saved: a resurrection spell, or the fight ending (nobody in the party in
+-- combat for safe_seconds) before then. Saved heroes are wounded; a wounded hero who goes down
+-- again dies for good, as does one who bleeds out. A commander who bleeds out fails the mission.
+Config.death = {
+    bleed_seconds = 45,
+    safe_seconds  = 3,     -- seconds with nobody in combat that count as "the fight is over"
+    revive_health = 0.30,  -- share of max health someone saved by the fight ending gets back
+    wound_spell   = 5337,  -- "Wither Strike": -10% max health; we make it last until healed
+    logout_seconds = 8,    -- a hero who died for good is sent away (logged out) after this
+}
+
+-- The infirmary (a building from phase 11; treatment already works from the roster) --------------
+Config.infirmary = {
+    cost_base = 20,        -- treating a wound: cost_base + cost_per_level * level, in gold
+    cost_per_level = 2,
 }
 
 -- Missions -----------------------------------------------------------------------------------

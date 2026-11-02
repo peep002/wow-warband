@@ -4,7 +4,7 @@
 -- addon. It only draws what the server sends (wb_ui.lua) and sends clicks back.
 -- Style: classic WoW panels (dialog frame, header plate, bottom tabs), 3.3.5a addon API only.
 --   * A minimap button opens and closes it.
---   * Tabs: Missions, Roster, Tavern; Armory and Hamlet are shown greyed out for later phases.
+--   * Tabs: Missions, Roster, Tavern, Memorial; Armory and Hamlet are shown greyed out for later phases.
 
 local AIO = AIO or require("AIO")
 if AIO.AddAddon() then return end
@@ -22,6 +22,7 @@ local TABS = {
     { key = "missions", name = "Missions" },
     { key = "roster",   name = "Roster" },
     { key = "tavern",   name = "Tavern" },
+    { key = "memorial", name = "Memorial" },
     { key = "armory",   name = "Armory", later = "The shared armory opens in phase 6." },
     { key = "hamlet",   name = "Hamlet", later = "Hamlet buildings open in phase 11." },
 }
@@ -202,6 +203,13 @@ local function MakeFrame()
     -- Roster and tavern pages ------------------------------------------------------------------
     f.pages.roster = MakeScrollPage(body, "WarbandRosterScroll")
     f.pages.tavern = MakeScrollPage(body, "WarbandTavernScroll")
+    f.pages.memorial = MakeScrollPage(body, "WarbandMemorialScroll")
+    -- The commander's own wound: a line and a Treat button above the roster.
+    local r = f.pages.roster
+    r.treatSelf = CreateFrame("Button", nil, r, "UIPanelButtonTemplate")
+    r.treatSelf:SetSize(150, 20)
+    r.treatSelf:SetPoint("TOP", 40, 3)
+    r.treatSelf:SetScript("OnClick", function() AIO.Handle("Warband", "Treat", 0) end)
 
     -- Placeholder page for tabs that open in later phases.
     f.pages.later = CreateFrame("Frame", nil, body)
@@ -374,6 +382,10 @@ local function Card(page, i)
     c.button = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
     c.button:SetSize(140, 24)
     c.button:SetPoint("BOTTOMRIGHT", -10, 10)
+    c.button2 = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
+    c.button2:SetSize(140, 24)
+    c.button2:SetPoint("RIGHT", c.button, "LEFT", -6, 0)
+    c.button2:Hide()
     page.cards[i] = c
     return c
 end
@@ -400,6 +412,7 @@ local function FillCard(c, p)
     FillTrait(c.good, p.good, "+", { 0.3, 1, 0.3 })
     FillTrait(c.bad, p.bad, "-", { 1, 0.35, 0.3 })
     c.story:SetText(p.backstory or "")
+    c.button2:Hide()
 end
 
 local function Place(page, count, emptyText)
@@ -413,14 +426,28 @@ local function DrawRoster()
     local page = frame.pages.roster
     local inParty = 0
     for _, h in ipairs(data.roster) do if h.inParty and h.status == "alive" then inParty = inParty + 1 end end
-    page.header:SetText(string.format("Roster: %d of %d heroes", data.alive, data.slots))
+    page.header:SetText(string.format("Roster: %d of %d heroes", data.alive, data.slots)
+        .. (data.wounded and "   |cffff3333You are wounded|r" or ""))
+    Shown(page.treatSelf, data.wounded)
+    if data.wounded then
+        page.treatSelf:SetText(string.format("Treat yourself (%d g)", data.treatCost))
+        if data.onMission or data.gold < data.treatCost then page.treatSelf:Disable() else page.treatSelf:Enable() end
+    end
     page.note:SetText(string.format("Party: %d of %d   (embarking needs %d)", inParty, data.maxParty, data.minParty))
     for i, h in ipairs(data.roster) do
         local c = Card(page, i)
         FillCard(c, h)
         local alive = h.status == "alive"
         c.status:SetText((alive and (h.inParty and "|cff33ff33In your party|r" or "|cffa0a0a0In the barracks|r")
-            or ("|cffff3333" .. Cap(h.status) .. "|r")) .. "\n|cffa0a0a0" .. h.missions .. " missions|r")
+            or ("|cffff3333" .. Cap(h.status) .. "|r")) .. (h.wounded and "\n|cffff3333Wounded (-10% health)|r" or "")
+            .. "\n|cffa0a0a0" .. h.missions .. " missions|r")
+        if alive and h.wounded then
+            c.button2:SetText(string.format("Treat (%d gold)", h.treatCost))
+            local guid = h.guid
+            c.button2:SetScript("OnClick", function() AIO.Handle("Warband", "Treat", guid) end)
+            if data.onMission or data.gold < h.treatCost then c.button2:Disable() else c.button2:Enable() end
+            c.button2:Show()
+        end
         if not alive then
             c.button:Hide()
         else
@@ -458,6 +485,29 @@ local function DrawTavern()
     Place(page, #data.recruits, "Nobody is waiting at the tavern.\nNew recruits arrive after each mission.")
 end
 
+local function DrawMemorial()
+    local page = frame.pages.memorial
+    page.header:SetText("The memorial wall")
+    page.note:SetText(#data.memorial == 0 and "" or string.format("%d fallen", #data.memorial))
+    for i, f in ipairs(data.memorial) do
+        local c = Card(page, i)
+        SetClassIcon(c.icon, f.class)
+        c.icon:SetDesaturated(true)
+        c.name:SetText(ClassName(f.class, f.name))
+        c.role:SetText("")
+        c.what:SetText(string.format("Level %d %s %s  -  survived %d mission%s", f.level, f.race, f.className, f.missions,
+            f.missions == 1 and "" or "s"))
+        c.good:Hide()
+        c.bad:Hide()
+        c.story:SetText("|cffd0a060" .. f.cause .. "|r")
+        c.status:SetText("|cffa0a0a0" .. f.died .. "|r")
+        c.button:Hide()
+        c.button2:Hide()
+        c:Show()
+    end
+    Place(page, #data.memorial, "Nobody has fallen yet.\nMay it stay that way.")
+end
+
 -- Drawing the whole window -------------------------------------------------------------------------
 
 function Handlers.Draw()
@@ -479,6 +529,9 @@ function Handlers.Draw()
     elseif tab.key == "tavern" then
         frame.pages.tavern:Show()
         DrawTavern()
+    elseif tab.key == "memorial" then
+        frame.pages.memorial:Show()
+        DrawMemorial()
     end
 end
 

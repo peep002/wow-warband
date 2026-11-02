@@ -20,6 +20,10 @@ Phase 4 adds: the board deals Act I contracts that fit your level; kills give 10
 mission gives about 1.5-2.5 levels to you and your heroes (heroes spend their new talent points);
 act progress; every embark is a fresh copy of the dungeon; abandoning gives a quarter; the gate;
 nobody passes the act's level cap.
+Phase 5 adds (test 11): a downed hero saved by the fight ending is wounded; downed again while
+wounded = dead for good (memorial wall); bleeding out = dead for good; a wipe fails the mission,
+loses the downed heroes and sends the commander home wounded; treating a wound costs gold; a
+wounded hero who sits out a mission heals.
 """
 import os
 import subprocess
@@ -67,9 +71,10 @@ def roster(bot):
     heroes = {}
     for part in s.get("list", "none").split(","):
         f = part.split(":")
-        if len(f) == 8:
+        if len(f) == 10:
             heroes[f[0]] = dict(cls=int(f[1]), level=int(f[2]), party=f[3] == "1", online=f[4] == "1",
-                                missions=int(f[5]), status=f[6], talents=int(f[7]))
+                                missions=int(f[5]), status=f[6], talents=int(f[7]), wounded=f[8] == "1",
+                                alive=f[9] == "1")
     return heroes, s
 
 
@@ -272,11 +277,15 @@ def main(bot, r, only=None):
         r.check("5: leaving the dungeon on a mission puts you back inside", num(s, "map") == DEADMINES,
                 f"map={s.get('map')}")
         time.sleep(3)
+        x0 = bot.probe("xp")
         k = bot.probe("killnear %d" % DEFIAS_MINER)
+        time.sleep(1)
         x = bot.probe("xp")
         cut_from, cut_to = num(x, "cutfrom"), num(x, "cutto")
+        gained = num(x, "xp") - num(x0, "xp")
         r.check("5: killing a monster gives 10% of its normal XP", k.get("killed") == "1" and cut_from > 0
-                and cut_to == cut_from // 10, f"normal={cut_from} given={cut_to}")
+                and cut_to == cut_from // 10 and gained == cut_to,
+                f"normal={cut_from} cut to={cut_to} really gained={gained}")
 
         # 6. Boss kill -------------------------------------------------------------------------
         print("Test 6: boss kill")
@@ -360,6 +369,114 @@ def main(bot, r, only=None):
     time.sleep(1)
     g = bot.probe("grant 5")
     r.check("10: mission XP stops at the act's level cap (20)", num(g, "level") == 20, str(g))
+
+    # 11. Death's door ---------------------------------------------------------------------------
+    print("Test 11: death's door")
+    time.sleep(11)
+    a, b = names[0], names[2]
+    bot.cmd(".warband call " + b)
+    wait_state(bot, lambda s: num(s, "bots") == 2, timeout=25)
+    if embark(bot, r, "11"):
+        time.sleep(4)
+        bot.probe("clear")  # a quiet spot: a hero revived at 30% health next to monsters charges them
+        time.sleep(2)
+        since = bot.mark()
+        bot.probe("down " + a)
+        r.check("11: a hero at 0 health is downed and the party is told", bot.wait_chat(a + " is down", 5, since) is not None)
+        d = bot.probe("downed")
+        r.check("11: the bleed-out clock runs (45 seconds)", d.get("downed", "").startswith(a + ":"), str(d))
+        time.sleep(6)  # down 3 s + nobody fighting for 3 s, checked every second
+        heroes, raw = roster(bot)
+        r.check("11: with the fight over, the downed hero is pulled back up", heroes[a]["alive"] and heroes[a]["status"] == "alive",
+                raw.get("list"))
+        r.check("11: a saved hero is wounded", heroes[a]["wounded"], raw.get("list"))
+
+        since = bot.mark()
+        bot.probe("down " + a)
+        r.check("11: downed again while wounded = dies for good", bot.wait_chat(a + " has fallen", 6, since) is not None)
+        heroes, raw = roster(bot)
+        r.check("11: the fallen hero is off the roster's living", heroes[a]["status"] == "dead" and not heroes[a]["party"],
+                raw.get("list"))
+
+        bot.probe("down %s hold" % b)
+        time.sleep(3)
+        since = bot.mark()
+        bot.probe("bleed " + b)
+        r.check("11: bleeding out = dies for good", bot.wait_chat(b + " has fallen", 6, since) is not None)
+        since = bot.mark()
+        bot.cmd(".warband memorial")
+        r.check("11: both are on the memorial wall", bot.wait_chat("Bled out", 5, since) is not None
+                and bot.wait_chat("still wounded", 1, since) is not None)
+        log = " ".join(bot.probe("log").values())
+        r.check("11: deaths are logged", log.count("hero_died") >= 2, log)
+        time.sleep(9)
+        heroes, raw = roster(bot)
+        r.check("11: fallen heroes are sent away (logged out)", not heroes[a]["online"] and not heroes[b]["online"],
+                raw.get("list"))
+        bot.cmd(".warband abandon")
+        wait_state(bot, lambda s: at_home(s) and s.get("mission") == "none", timeout=20)
+
+    # A wipe: the last hero down (held), then the commander.
+    time.sleep(11)
+    c = names[1]
+    bot.cmd(".warband call " + c)
+    wait_state(bot, lambda s: num(s, "bots") == 1, timeout=25)
+    if embark(bot, r, "11w"):
+        time.sleep(4)
+        bot.probe("clear")
+        time.sleep(2)
+        bot.probe("down %s hold" % c)
+        time.sleep(2)
+        bot.cmd(".cheat god off")
+        since = bot.mark()
+        bot.probe("down me")
+        r.check("11w: everyone down at once = the mission fails", bot.wait_chat("mission has failed", 8, since) is not None)
+        s = wait_state(bot, lambda s: at_home(s) and num(s, "alive") == 1, timeout=20)
+        r.check("11w: the commander wakes up at home, alive", at_home(s) and num(s, "alive") == 1 and s.get("mission") == "none",
+                f"map={s.get('map')} alive={s.get('alive')} mission={s.get('mission')}")
+        bot.cmd(".cheat god on")
+        heroes, raw = roster(bot)
+        r.check("11w: the downed hero is lost in the wipe", heroes[c]["status"] == "dead", raw.get("list"))
+        r.check("11w: the commander is wounded", num(raw, "cwounded") == 1, str(raw.get("cwounded")))
+        gold = num(state(bot), "gold")
+        since = bot.mark()
+        bot.cmd(".warband treat me")
+        r.check("11w: treating a wound is confirmed", bot.wait_chat("is treated", 5, since) is not None)
+        r.check("11w: treating costs gold (20 + 2 per level)", num(state(bot), "gold") == gold - (20 + 2 * 20)
+                and num(roster(bot)[1], "cwounded") == 0, f"gold {gold} -> {state(bot).get('gold')}")
+
+    # Sitting out heals: wound the last founder, then go without them.
+    time.sleep(11)
+    w = names[3]
+    bot.cmd(".warband call " + w)
+    wait_state(bot, lambda s: num(s, "bots") == 1, timeout=25)
+    if embark(bot, r, "11s"):
+        time.sleep(4)
+        bot.probe("clear")
+        time.sleep(2)
+        bot.probe("down " + w)
+        time.sleep(7)
+        heroes, raw = roster(bot)
+        r.check("11s: the hero is wounded", heroes[w]["wounded"], raw.get("list"))
+        bot.cmd(".warband abandon")
+        wait_state(bot, lambda s: at_home(s) and s.get("mission") == "none", timeout=20)
+        r.check("11s: a hero who went keeps the wound", roster(bot)[0][w]["wounded"])
+        bot.cmd(".warband send " + w)
+        recruits, _ = tavern(bot)
+        affordable = [x for x in recruits if x["cost"] <= num(state(bot), "gold")]
+        if affordable:
+            bot.cmd(".warband hire " + affordable[0]["name"])
+            time.sleep(1)
+            bot.cmd(".warband call " + affordable[0]["name"])
+            wait_state(bot, lambda s: num(s, "bots") == 1, timeout=25)
+            time.sleep(11)
+            if embark(bot, r, "11s2"):
+                bot.cmd(".warband abandon")
+                wait_state(bot, lambda s: at_home(s) and s.get("mission") == "none", timeout=20)
+                heroes, raw = roster(bot)
+                r.check("11s: a wounded hero who sits out a mission heals", not heroes[w]["wounded"], raw.get("list"))
+        else:
+            r.check("11s: (could afford a new recruit for the sit-out check)", False, str(recruits))
 
     # 8. Restart -------------------------------------------------------------------------------
     if restart:
