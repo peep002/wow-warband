@@ -29,6 +29,11 @@
 --   .wbdev wander       jump 300 yards out of the hamlet (as if you walked off)
 --   .wbdev killboss     kill the running mission's target boss, with you as the killer
 --   .wbdev log          the last 6 warband_log lines of your company
+--   .wbdev trait NAME pos|pos2|neg KEY   give a hero a trait;  .wbdev traits NAME   its trait state
+--   .wbdev hp NAME|me PCT   set health;  .wbdev aggro NAME|me [RANGE]   the nearest idle monster attacks them
+--   .wbdev attackers NAME|me   who hits them and whom those hit;  .wbdev near NAME|me RANGE  monsters fighting
+--   .wbdev calm         kill the monsters that are fighting (idle ones stay, unlike clear)
+--   .wbdev traitset KEY FIELD VALUE   change a trait's number, e.g. "clumsy chance 1" (until .reload ale)
 
 local Config   = require("wb_config")
 local Company  = require("wb_company")
@@ -291,6 +296,110 @@ function probes.log(player, arg)
     local lines = {}
     repeat lines[#lines + 1] = q:GetString(0) .. ":" .. q:GetString(1):gsub("%s", "_") until not q:NextRow()
     Out(player, "log=" .. table.concat(lines, ","))
+end
+
+-- Traits (phase 7) ---------------------------------------------------------------------------------
+
+local function HeroOf(player, name)
+    for _, h in ipairs(require("wb_roster").List(player)) do
+        if h.name:lower() == (name or ""):lower() then return h end
+    end
+end
+
+-- ".wbdev trait NAME pos|pos2|neg KEY": give a hero a trait (saved, like a rolled one). KEY "-" clears.
+function probes.trait(player, arg)
+    local name, slot, key = arg:match("^(%S+)%s+(%S+)%s+(%S+)$")
+    local field = ({ pos = "trait_pos", pos2 = "trait_pos2", neg = "trait_neg" })[slot or ""]
+    local h = HeroOf(player, name)
+    if not h or not field then return Out(player, "trait=0") end
+    h[field] = key == "-" and "" or key
+    CharDBExecute(string.format("UPDATE `warband_heroes` SET `%s` = '%s' WHERE `guid` = %d", field, h[field], h.guid))
+    Out(player, "trait=1")
+end
+
+-- ".wbdev traits NAME": aura102000:aura102001 (1 = on), what's used this fight, health %, alive
+function probes.traits(player, arg)
+    local h = HeroOf(player, arg)
+    local unit = h and GetPlayerByGUID(GetPlayerGUID(h.guid))
+    if not unit then return Out(player, "traits=none") end
+    local auras = {}
+    for _, key in ipairs({ "stalwart", "glass_jaw" }) do
+        auras[#auras + 1] = key .. ":" .. (unit:HasAura(Config.trait_effects.auras[key]) and 1 or 0)
+    end
+    Out(player, string.format("traits=%s,%s,%s auras=%s used=%s hp=%d alive=%d combat=%d", h.trait_pos, h.trait_pos2,
+        h.trait_neg, table.concat(auras, ","), require("wb_traits").State(h.guid), unit:GetHealthPct(),
+        unit:IsAlive() and 1 or 0, unit:IsInCombat() and 1 or 0))
+end
+
+-- ".wbdev hp NAME|me PCT": set health to a share of the maximum
+function probes.hp(player, arg)
+    local who, pct = arg:match("^(%S+)%s+(%d+)$")
+    local unit = who and Who(player, who)
+    if not unit then return Out(player, "hp=0") end
+    unit:SetHealth(math.max(1, math.floor(unit:GetMaxHealth() * tonumber(pct) / 100)))
+    Out(player, "hp=" .. unit:GetHealthPct())
+end
+
+-- ".wbdev aggro NAME|me [RANGE]": the nearest idle monster attacks them, seen or not (it walks there)
+function probes.aggro(player, arg)
+    local who, range = arg:match("^(%S+)%s*(%d*)$")
+    local unit = who and Who(player, who)
+    if not unit then return Out(player, "aggro=none") end
+    local best, bestDist
+    for _, c in ipairs(unit:GetCreaturesInRange(tonumber(range) or 60, 0, 1, 1) or {}) do
+        if not c:IsInCombat() and not c:IsCivilian() and not c:IsTrigger() and not c:IsDungeonBoss() then
+            local d = unit:GetDistance(c)
+            if not best or d < bestDist then best, bestDist = c, d end
+        end
+    end
+    if not best then return Out(player, "aggro=none") end
+    best:AttackStart(unit)
+    Out(player, string.format("aggro=%d low=%d dist=%d", best:GetEntry(), best:GetGUIDLow(), bestDist))
+end
+
+-- ".wbdev calm": kill every monster within 100 yards that is fighting (the idle ones stay)
+function probes.calm(player)
+    local n = 0
+    for _, c in ipairs(player:GetCreaturesInRange(100, 0, 1, 1) or {}) do
+        if c:IsInCombat() then
+            player:Kill(c, false)
+            n = n + 1
+        end
+    end
+    Out(player, "calmed=" .. n)
+end
+
+-- ".wbdev attackers NAME|me": who is attacking them, and whom each of those is hitting (name:victim)
+function probes.attackers(player, arg)
+    local unit = Who(player, arg)
+    if not unit then return Out(player, "attackers=none") end
+    local parts = {}
+    for _, a in ipairs(unit:GetAttackers() or {}) do
+        local v = a:GetVictim()
+        parts[#parts + 1] = string.format("%d:%s", a:GetEntry(), v and v:GetName() or "-")
+    end
+    Out(player, "attackers=" .. (#parts > 0 and table.concat(parts, ",") or "none"))
+end
+
+-- ".wbdev near NAME|me RANGE": monsters fighting within range (entry:victim), to see a pull
+function probes.near(player, arg)
+    local who, range = arg:match("^(%S+)%s*(%d*)$")
+    local unit = who and Who(player, who)
+    if not unit then return Out(player, "near=none") end
+    local fighting = 0
+    for _, c in ipairs(unit:GetCreaturesInRange(tonumber(range) or 60, 0, 1, 1) or {}) do
+        if c:IsInCombat() then fighting = fighting + 1 end
+    end
+    Out(player, "fighting=" .. fighting)
+end
+
+-- ".wbdev traitset KEY FIELD VALUE": change one of a trait's numbers until the next .reload ale (tests)
+function probes.traitset(player, arg)
+    local key, field, value = arg:match("^(%S+)%s+(%S+)%s+([%d%.]+)$")
+    local e = key and Config.trait_effects[key]
+    if not e or type(e) ~= "table" or e[field] == nil then return Out(player, "set=none") end
+    e[field] = tonumber(value)
+    Out(player, "set=" .. e[field])
 end
 
 RegisterPlayerEvent(PLAYER_EVENT_ON_COMMAND, function(event, player, command)

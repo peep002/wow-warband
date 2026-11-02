@@ -114,6 +114,8 @@ Stop worldserver with `server shutdown 1` at `AC>`; Ctrl+C stops authserver.
 | `sql/base/005_armory.sql` | warband_characters | 2026-11-01 | `DROP TABLE warband_armory` (empties every armory) |
 | `sql/base/006_veterans.sql` | warband_characters | 2026-11-01 | drop columns `trait_pos2`, `gear_quality`, `veteran` from `warband_recruits`; `trait_pos2`, `gear_quality` from `warband_heroes` |
 | `sql/updates/003_tavern_npc.sql` | warband_world | 2026-11-01 | delete 9100001 from `creature`, `creature_template`, `creature_template_model`, `npc_text` |
+| `sql/base/007_traits.sql` | warband_characters | 2026-11-01 | drop column `pocket` from `warband_armory` (pocketed items would show up in the armory) |
+| `sql/updates/004_trait_spells.sql` (restart after) | warband_world | 2026-11-01 | `DELETE FROM spell_dbc WHERE ID BETWEEN 102000 AND 102099` |
 
 Apply with: `& "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" -u acore -pacore <database> -e "source sql/...sql"`
 (from this project folder). Creature changes need a worldserver restart.

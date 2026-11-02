@@ -45,7 +45,7 @@ end
 
 local function Trait(kind, key)
     local t = Config.traits[kind][key]
-    return t and { name = t.name, text = t.text } or nil
+    return t and { name = t.name, text = t.text, later = t.later } or nil
 end
 
 local function Person(p) -- what a hero and a recruit have in common

@@ -28,6 +28,9 @@ Phase 6 adds (tests 1, 3b, 6, 11): starter gear; loot goes to the armory (trade 
 materials, unusable items are salvaged); upgrades are suggested; equipping keeps random suffixes and
 puts the old item back; equip all; selling and salvaging; heroes are equipped; missions pay gold and
 renown; a fallen hero's bag gear goes to the armory.
+Phase 7 adds (test 12): trait auras (Stalwart Shield, Glass Jaw) on and off; Greedy pockets a drop
+and it comes back when they fall; Clumsy and Hothead pull another pack; a Coward runs; a Selfless
+hero draws an ally's attackers; a Field Medic gets a downed ally up.
 """
 import os
 import subprocess
@@ -47,6 +50,7 @@ DEFIAS_MINER = 598              # a monster near the Deadmines entrance
 RING_A, RING_B, PANTS_RANDOM, DK_ONLY, LINEN, GREY_WAND, CAPE, CAPE2 = 8350, 20906, 6267, 38588, 2589, 5560, 1355, 2284
 STARTER_SLOTS = (4, 5, 6, 7, 8, 9, 15)   # chest, waist, legs, feet, wrists, hands, main hand
 FROST_NOVA = 122                # a Mage spell trained at level 10
+RES_CLASSES = (2, 5, 7, 11)     # paladin, priest, shaman, druid: they have resurrection spells
 LAUNCHER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server-launcher", "ServerLauncher.exe")
 SERVER_LOG = r"C:\Claude\Projects\azerothcore-warband\build\bin\Release\Server.log"
 
@@ -177,6 +181,182 @@ def kill_boss(bot, spawn=RHAHKZOR_SPAWN):
     bot.cmd(".go creature %d" % spawn)
     time.sleep(3)
     return bot.probe("killboss")
+
+
+def traits(bot, name):
+    """dict(traits=[pos, pos2, neg], auras={key: bool}, used=set, hp, alive, raw)"""
+    s = bot.probe("traits " + name)
+    auras = dict(a.split(":") for a in s.get("auras", "").split(",") if ":" in a)
+    return dict(traits=s.get("traits", "").split(","), auras={k: v == "1" for k, v in auras.items()},
+                used=set(s.get("used", "none").split(",")) - {"none"}, hp=num(s, "hp"), alive=num(s, "alive") == 1,
+                raw=str(s))
+
+
+def set_traits(bot, name, pos="brave", pos2="-", neg="restless"):
+    """Brave and Restless do nothing yet (stress is phase 8): a hero with them behaves plainly."""
+    for slot, key in (("pos", pos), ("pos2", pos2), ("neg", neg)):
+        bot.probe("trait %s %s %s" % (name, slot, key))
+
+
+def in_combat(bot, name, timeout=20):
+    """Wait until a monster has reached the hero and the fight is on."""
+    end = time.time() + timeout
+    while time.time() < end:
+        if bot.probe("traits " + name).get("combat") == "1":
+            return True
+        time.sleep(1)
+    return False
+
+
+def end_fight(bot):
+    """Kill whatever is fighting and wait until nobody is in combat (combat lasts ~5 s after)."""
+    bot.probe("calm")
+    time.sleep(2)
+    bot.probe("calm")
+    time.sleep(7)
+
+
+def traits_test(bot, r):
+    """Phase 7. Two heroes, A and B; each step gives them the traits it tests (rolled traits that
+    would get in the way are swapped for ones that do nothing yet)."""
+    time.sleep(11)
+    heroes, raw = roster(bot)
+    alive = [n for n, h in heroes.items() if h["status"] == "alive"]
+    if len(alive) < 2:
+        recruits, _ = tavern(bot)
+        affordable = [x for x in recruits if x["cost"] <= num(state(bot), "gold")]
+        if affordable:
+            bot.cmd(".warband hire " + affordable[0]["name"])
+            time.sleep(1)
+            alive.append(affordable[0]["name"])
+    r.check("12: two living heroes for the trait tests", len(alive) >= 2, raw.get("list"))
+    if len(alive) < 2:
+        return
+    a, b = alive[0], alive[1]
+    for n in (a, b):
+        if not heroes.get(n, {}).get("party"):
+            bot.cmd(".warband call " + n)
+    wait_state(bot, lambda s: num(s, "bots") == 2, timeout=25)
+
+    # Hidden auras: on with the trait, off without it.
+    set_traits(bot, a, pos="stalwart", neg="glass_jaw")
+    set_traits(bot, b)
+    time.sleep(3)
+    t = traits(bot, a)
+    r.check("12: Stalwart Shield and Glass Jaw put their hidden auras on",
+            t["auras"].get("stalwart") and t["auras"].get("glass_jaw"), t["raw"])
+    set_traits(bot, a)
+    time.sleep(3)
+    t = traits(bot, a)
+    r.check("12: the auras come off when the hero doesn't have the traits",
+            not t["auras"].get("stalwart") and not t["auras"].get("glass_jaw"), t["raw"])
+
+    # Greedy: a pocketed drop never reaches the armory (B pockets it; B falls at the end, below).
+    set_traits(bot, b, neg="greedy")
+    bot.probe("traitset greedy chance 1")
+    before = sum(1 for it in armory(bot)[0] if it["entry"] == CAPE)
+    since = bot.mark()
+    bot.probe("lootsim %d %s" % (CAPE, a))
+    r.check("12: a Greedy hero pockets a drop", bot.wait_chat(b + " pockets", 5, since) is not None)
+    after = sum(1 for it in armory(bot)[0] if it["entry"] == CAPE)
+    r.check("12: the pocketed drop isn't in the armory", after == before, f"{before} -> {after}")
+    bot.probe("traitset greedy chance 0.1")
+    set_traits(bot, b)
+
+    if not embark(bot, r, "12"):
+        return
+    time.sleep(4)
+
+    # Hothead first, while the entrance still has monsters in sight: right after a fight, charges
+    # the next pack.
+    set_traits(bot, a, neg="hothead")
+    bot.probe("traitset hothead chance 1")
+    bot.probe("traitset hothead range 250")
+    bot.probe("aggro %s 200" % a)
+    in_combat(bot, a)
+    since = bot.mark()
+    bot.probe("calm")
+    time.sleep(2)
+    bot.probe("calm")
+    r.check("12: a Hothead charges the next pack after a fight",
+            bot.wait_chat("charges the next pack", 20, since) is not None)
+    bot.probe("traitset hothead chance 0.25")
+    set_traits(bot, a)
+    bot.probe("hp %s 100" % a)
+    end_fight(bot)
+
+    # Clumsy: a few seconds into a fight, another pack.
+    set_traits(bot, a, neg="clumsy")
+    bot.probe("traitset clumsy chance 1")
+    bot.probe("traitset clumsy range 120")
+    since = bot.mark()
+    bot.probe("aggro %s 150" % a)
+    r.check("12: a Clumsy hero stumbles into another pack mid-fight",
+            bot.wait_chat("stumbles into another pack", 12, since) is not None)
+    bot.probe("traitset clumsy chance 0.2")
+    set_traits(bot, a)
+    bot.probe("hp %s 100" % a)
+    end_fight(bot)
+
+    # Coward: below 20% health in a fight, runs (once).
+    set_traits(bot, a, neg="coward")
+    since = bot.mark()
+    bot.probe("aggro %s 200" % a)
+    in_combat(bot, a)  # the monster may have a long walk
+    bot.probe("hp %s 15" % a)
+    ok = bot.wait_chat(a + " panics and runs", 5, since) is not None
+    bot.probe("hp %s 100" % a)
+    t = traits(bot, a)
+    r.check("12: a Coward below 20% health panics and runs", ok, t["raw"])
+    r.check("12: ...and it counts as used for this fight", "coward" in t["used"], t["raw"])
+    set_traits(bot, a)
+    end_fight(bot)
+
+    # Selfless: an ally under 25% health; the enemies hitting them turn on the Selfless hero.
+    set_traits(bot, a, pos="selfless")
+    since = bot.mark()
+    bot.probe("aggro %s 200" % b)
+    in_combat(bot, b)
+    time.sleep(1)
+    bot.probe("hp %s 22" % b)
+    ok = bot.wait_chat(a + " throws themself between " + b, 5, since) is not None
+    bot.probe("hp %s 100" % b)
+    r.check("12: a Selfless hero steps in for an ally under 25% health", ok)
+    time.sleep(2)
+    att = bot.probe("attackers " + a).get("attackers", "none")
+    r.check("12: the enemies turn on the Selfless hero", (":" + a) in att, att)
+    set_traits(bot, a)
+    end_fight(bot)
+
+    # Field Medic: someone down for 15 seconds is got back up, even with the normal rescue held.
+    # The medic must be a class without a resurrection spell, or a bot priest (paladin, shaman,
+    # druid) simply casts Resurrection first.
+    heroes, _ = roster(bot)
+    cls = {n: heroes.get(n, {}).get("cls", 0) for n in (a, b)}
+    medic, patient = (b, a) if cls[a] in RES_CLASSES and cls[b] not in RES_CLASSES else (a, b)
+    set_traits(bot, medic, pos="field_medic")
+    since = bot.mark()
+    bot.probe("down %s hold" % patient)
+    ok = bot.wait_chat(medic + " gets " + patient + " back on their feet", 22, since) is not None
+    r.check("12: a Field Medic gets a downed ally up after 15 seconds", ok, f"medic class {cls[medic]}")
+    time.sleep(2)
+    heroes, raw = roster(bot)
+    r.check("12: ...and the saved ally is alive and wounded", heroes[patient]["alive"] and heroes[patient]["wounded"],
+            raw.get("list"))
+    set_traits(bot, medic)
+
+    # B (who pocketed the cape) falls for good: the cape turns up. (Held, then bled out: B may or
+    # may not be wounded by now.)
+    since = bot.mark()
+    bot.probe("down %s hold" % b)
+    time.sleep(3)
+    bot.probe("bleed " + b)
+    ok = bot.wait_chat("pocketed item", 8, since) is not None
+    back = sum(1 for it in armory(bot)[0] if it["entry"] == CAPE)
+    r.check("12: what a Greedy hero pocketed comes back to the armory when they fall", ok and back == before + 1,
+            f"{before} -> {back}")
+    bot.cmd(".warband abandon")
+    wait_state(bot, lambda s: at_home(s) and s.get("mission") == "none", timeout=20)
 
 
 # The plan -------------------------------------------------------------------------------------
@@ -583,6 +763,10 @@ def main(bot, r, only=None):
                 r.check("11s: a wounded hero who sits out a mission heals", not heroes[w]["wounded"], raw.get("list"))
         else:
             r.check("11s: (could afford a new recruit for the sit-out check)", False, str(recruits))
+
+    # 12. Traits -------------------------------------------------------------------------------
+    print("Test 12: traits")
+    traits_test(bot, r)
 
     # 8. Restart -------------------------------------------------------------------------------
     if restart:

@@ -168,3 +168,34 @@ The bot can't open corpses, so real looting is only tested here. Start with a **
 Tell me if the Armory tab is clear, and whether gold feels too tight or too loose after a few missions.
 
 **Result:** (waiting)
+
+## Test 7: traits (phase 7)
+
+Traits now do things on missions. Each one announces itself in chat with its name in brackets, e.g.
+"(Coward)". Use any company with heroes; the GM shortcuts below set a trait on purpose, so you don't
+have to wait for a lucky roll. `HERO` = one of your heroes' names.
+
+1. **Roster** tab: hover each hero's green and red traits.
+   - **Expect:** the trait's text. Brave, Night Owl, Quartermaster, Lucky, Restless and Hates the Dark
+     add a grey line "Not active yet: starts working with ..." (they need stress, darkness, supplies or
+     chests). The other eight have no grey line: they work now.
+2. Play a mission or two normally and watch chat. With a few heroes you'll likely see one of:
+   - **Coward:** "HERO panics and runs!" when they drop below 20% health; they run for about 4 seconds.
+   - **Clumsy:** "HERO stumbles into another pack!" a few seconds into some fights; a second group
+     of monsters joins in.
+   - **Hothead:** "HERO charges the next pack before the healer is ready!" right after some fights.
+   - **Selfless:** "HERO throws themself between ALLY and the enemy!" when someone is nearly dead; the
+     monsters turn on the Selfless hero.
+   - **Field Medic:** someone who's been down for 15 seconds mid-fight gets back up: "HERO gets ALLY
+     back on their feet!" (they're wounded, like any save).
+   - **Greedy:** sometimes, instead of "goes to the armory": "HERO pockets ITEM instead of handing it in."
+     The item isn't in the Armory tab.
+3. Optional, to see one on purpose (GM): `.wbdev trait HERO neg coward` gives a hero the Coward trait
+   (`pos` for a good trait, e.g. `.wbdev trait HERO pos selfless`). Then fight with them.
+4. Stalwart Shield (tanks) and Glass Jaw work quietly: no message and no buff icon. A Stalwart tank
+   should hold the monsters a bit better.
+
+Tell me whether the traits show up often enough to notice, whether any feels unfair (Clumsy and
+Hothead can be rough), and whether a hero ever got stuck running or fighting the wrong thing.
+
+**Result:** (waiting)

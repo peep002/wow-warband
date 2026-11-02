@@ -53,20 +53,29 @@ local function Deal(player, c)
     table.sort(fits) -- a fixed order first, so only the shuffle decides
     Shuffle(fits)
 
-    -- Pass 1: a new dungeon and a new length. Pass 2: a new dungeon. Pass 3: anything left.
+    -- One at a time, the contract that adds the most variety: +1 for a new dungeon, +1 for a new
+    -- length, and +0.5 more for whichever of the two the board still has only one of (otherwise
+    -- "Ragefire Short" then two other dungeons' Shorts could fill the board with three Shorts).
+    -- Ties go to the shuffled order.
     local usedDungeon, usedLength = {}, {}
-    for pass = 1, 3 do
+    local function Count(t) local n = 0 for _ in pairs(t) do n = n + 1 end return n end
+    while #keys < Config.board.offers do
+        local best, bestScore
         for _, key in ipairs(fits) do
-            if #keys >= Config.board.offers then break end
-            local m = Config.missions[key]
             local taken = false
             for _, k in ipairs(keys) do taken = taken or k == key end
-            local fresh = not usedDungeon[m.dungeon] and (pass >= 2 or not usedLength[m.length])
-            if not taken and (pass == 3 or fresh) then
-                keys[#keys + 1] = key
-                usedDungeon[m.dungeon], usedLength[m.length] = true, true
+            if not taken then
+                local m = Config.missions[key]
+                local score = 0
+                if not usedDungeon[m.dungeon] then score = score + 1 + (Count(usedDungeon) == 1 and 0.5 or 0) end
+                if not usedLength[m.length] then score = score + 1 + (Count(usedLength) == 1 and 0.5 or 0) end
+                if not best or score > bestScore then best, bestScore = key, score end
             end
         end
+        if not best then break end
+        keys[#keys + 1] = best
+        local m = Config.missions[best]
+        usedDungeon[m.dungeon], usedLength[m.length] = true, true
     end
     Save(c, keys)
     Log.Event(c.guid, "board_dealt", table.concat(keys, ","))

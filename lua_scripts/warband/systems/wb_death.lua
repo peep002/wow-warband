@@ -42,6 +42,15 @@ end
 function Death.Hold(guid) if downed[guid] then downed[guid].hold = true end end
 function Death.Expire(guid) if downed[guid] then downed[guid].at = os.time() - D.bleed_seconds end end
 
+-- Who is down in this commander's party: { { guid = , seconds = time down }, ... }
+function Death.DownedIn(commander)
+    local list, now = {}, os.time()
+    for guid, d in pairs(downed) do
+        if d.commander == commander:GetGUIDLow() then list[#list + 1] = { guid = guid, seconds = now - d.at } end
+    end
+    return list
+end
+
 local function Revive(unit, health)
     allowNow[unit:GetGUIDLow()] = true
     unit:ResurrectPlayer(health)
@@ -99,6 +108,15 @@ local function OnSaved(commander, unit, how)
         Tell(commander, string.format("|cff20ff20[Warband] %s is saved,|r but wounded (-10%% health) until treated or rested.",
             unit:GetName()))
     end
+end
+
+-- Another system saves someone who is down (a Field Medic, wb_traits): back up at revive_health,
+-- and wounded like any saved hero. Returns true if they were down.
+function Death.Save(commander, unit, how)
+    if not downed[unit:GetGUIDLow()] or not unit:IsDead() then return false end
+    Revive(unit, D.revive_health)
+    OnSaved(commander, unit, how)
+    return true
 end
 
 -- A revive done just before the trip home doesn't always survive the teleport (people arrived

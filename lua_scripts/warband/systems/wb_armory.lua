@@ -133,8 +133,9 @@ local function AddMaterials(commanderGuid, n)
 end
 
 -- Puts an item into the company's armory (or turns it into materials). Returns what happened:
--- "stored", "materials", "salvaged" or nil (not armory material: leave it where it is).
-function Armory.Store(commanderGuid, entry, count, prop, suffix)
+-- "stored", "materials", "salvaged", "pocketed" or nil (not armory material: leave it where it is).
+-- pocket = a Greedy hero's guid: the item is kept for them, out of sight, until they fall.
+function Armory.Store(commanderGuid, entry, count, prop, suffix, pocket)
     local t = Template(entry)
     if not t then return nil end
     if t.class == ITEM_CLASS_TRADE_GOODS then
@@ -150,29 +151,40 @@ function Armory.Store(commanderGuid, entry, count, prop, suffix)
         Log.Event(commanderGuid, "armory_salvaged", t.name)
         return "salvaged"
     end
-    CharDBQuery(string.format("INSERT INTO `warband_armory` (`company`, `entry`, `count`, `prop`, `suffix`) VALUES (%d, %d, %d, %d, %d)",
-        commanderGuid, entry, count, prop or 0, suffix or 0))
-    Log.Event(commanderGuid, "armory_stored", t.name)
-    return "stored"
+    CharDBQuery(string.format("INSERT INTO `warband_armory` (`company`, `entry`, `count`, `prop`, `suffix`, `pocket`) "
+        .. "VALUES (%d, %d, %d, %d, %d, %d)", commanderGuid, entry, count, prop or 0, suffix or 0, pocket or 0))
+    Log.Event(commanderGuid, pocket and "armory_pocketed" or "armory_stored", t.name)
+    return pocket and "pocketed" or "stored"
 end
 
 -- Moves an item a character holds into the armory (removing it from them). Returns the result.
-local function TakeIntoArmory(commanderGuid, holder, item, count)
+local function TakeIntoArmory(commanderGuid, holder, item, count, pocket)
     local result = Armory.Store(commanderGuid, item:GetEntry(), count or item:GetCount(), item:GetRandomProperty(),
-        item:GetRandomSuffix())
+        item:GetRandomSuffix(), pocket)
     if result then holder:RemoveItem(item, count or item:GetCount()) end
     return result
 end
+
+local SAYS = { stored = "goes to the armory", materials = "becomes materials", salvaged = "is salvaged into materials" }
 
 local function OnLoot(event, player, item, count)
     local cguid = CompanyGuid(player)
     if not cguid or not item then return end
     local name = item:GetName()
-    local result = TakeIntoArmory(cguid, player, item, count)
     local commander = GetPlayerByGUID(GetPlayerGUID(cguid))
+    -- Greedy heroes: a chance per item that one of them keeps it (only worth it for real gear).
+    local pocket, pocketName
+    if commander and (item:GetClass() == ITEM_CLASS_WEAPON or item:GetClass() == ITEM_CLASS_ARMOR) then
+        pocket, pocketName = require("wb_traits").Pocket(commander)
+    end
+    local result = TakeIntoArmory(cguid, player, item, count, pocket)
     if commander and result then
-        commander:SendBroadcastMessage(string.format("|cffffd100[Warband]|r %s %s.", name,
-            result == "stored" and "goes to the armory" or (result == "materials" and "becomes materials" or "is salvaged into materials")))
+        if result == "pocketed" then
+            commander:SendBroadcastMessage(string.format("|cffff8020[Warband] %s pockets %s|r instead of handing it in. (Greedy)",
+                pocketName, name))
+        else
+            commander:SendBroadcastMessage(string.format("|cffffd100[Warband]|r %s %s.", name, SAYS[result]))
+        end
         Changed(commander)
     end
 end
@@ -194,6 +206,17 @@ local function Keep(item)
     return t and t.quality >= 2
 end
 Roster.OnKilled(function(commander, bot)
+    -- What a Greedy hero pocketed turns up in their things.
+    local q = CharDBQuery(string.format("SELECT COUNT(*) FROM `warband_armory` WHERE `company` = %d AND `pocket` = %d",
+        commander:GetGUIDLow(), bot:GetGUIDLow()))
+    local found = q and q:GetUInt32(0) or 0
+    if found > 0 then
+        CharDBQuery(string.format("UPDATE `warband_armory` SET `pocket` = 0 WHERE `company` = %d AND `pocket` = %d",
+            commander:GetGUIDLow(), bot:GetGUIDLow()))
+        commander:SendBroadcastMessage(string.format("|cffffd100[Warband]|r Among %s's things: %d pocketed item%s, back in the armory.",
+            bot:GetName(), found, found == 1 and "" or "s"))
+        Log.Event(commander:GetGUIDLow(), "armory_unpocketed", bot:GetName() .. " " .. found)
+    end
     for bag = 255, 255 do -- the backpack (bags 19-22 too)
         for slot = 23, 38 do
             local item = bot:GetItemByPos(bag, slot)
@@ -213,7 +236,7 @@ end)
 function Armory.List(player)
     local list = {}
     local q = CharDBQuery("SELECT `id`, `entry`, `count`, `prop`, `suffix` FROM `warband_armory` WHERE `company` = "
-        .. player:GetGUIDLow() .. " ORDER BY `id` DESC")
+        .. player:GetGUIDLow() .. " AND `pocket` = 0 ORDER BY `id` DESC")
     if q then
         repeat
             local t = Template(q:GetUInt32(1))
@@ -462,6 +485,8 @@ local function StarterItem(where)
     local S = Config.starter
     local q = WorldDBQuery(string.format("SELECT `entry` FROM `item_template` WHERE %s AND `Quality` = %d "
         .. "AND `RequiredLevel` BETWEEN %d AND %d AND `RandomProperty` = 0 AND `RandomSuffix` = 0 "
+        -- (items that need a reputation or a profession can't be worn by a new character)
+        .. "AND `RequiredReputationFaction` = 0 AND `RequiredSkill` = 0 AND `RequiredSpell` = 0 "
         .. "AND `AllowableClass` IN (-1, 0, 32767, 262143) ORDER BY RAND() LIMIT 1", where, S.quality, S.min_level, S.max_level))
     return q and q:GetUInt32(0)
 end

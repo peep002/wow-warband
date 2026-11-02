@@ -52,7 +52,14 @@ steps, so results can be recorded there.
 19. Let someone die for good (a wounded hero going down again): **Memorial** tab. [5.3]
 20. Die yourself with nobody to save you: the mission fails and you wake up wounded at home. [5.4]
 
+## Traits (phase 7), during any of the missions above
+21. Hover traits on the Roster tab: six say "Not active yet" in grey; the other eight work. [7.1]
+22. Watch chat in fights for trait lines with the trait's name in brackets: "(Coward)", "(Clumsy)",
+    "(Hothead)", "(Selfless)", "(Field Medic)", "(Greedy)". [7.2] To force one:
+    `.wbdev trait HERO neg coward` (or `pos selfless`, etc.). [7.3]
+
 ## What to tell me
 - Anything broken, and anything confusing in the window.
 - Whether dying feels fair (45 seconds, the "fight is over" rescue).
 - Whether gold feels too tight or too loose.
+- Whether traits show up often enough, and whether Clumsy or Hothead feel unfair.

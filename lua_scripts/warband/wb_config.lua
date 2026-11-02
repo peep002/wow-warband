@@ -77,27 +77,41 @@ Config.specs = {
              { no = 2, name = "Restoration", role = "healer" }, { no = 3, name = "Feral (cat)", role = "dps" } },
 }
 
--- Traits: rolled now (one good, one bad), their effects come in phase 7.
--- only = a role the trait is limited to.
+-- Traits: one good and one bad per hero (veterans two good). only = a role the trait is limited to.
+-- later = the trait needs a system that isn't built yet; the window says when it starts working.
+-- What the working ones do, and their numbers, is in Config.trait_effects below (wb_traits.lua).
 Config.traits = {
     positive = {
-        brave         = { name = "Brave", text = "25% less stress gain." },
-        stalwart      = { name = "Stalwart Shield", text = "10% more threat; never loses aggro to a single crit.", only = "tank" },
-        selfless      = { name = "Selfless", text = "Taunts or shields a downed ally once per fight." },
-        night_owl     = { name = "Night Owl", text = "+8% damage on high-darkness missions." },
-        quartermaster = { name = "Quartermaster", text = "Expedition supplies last 25% longer." },
-        lucky         = { name = "Lucky", text = "Better odds on rare affixes from chests they open." },
-        field_medic   = { name = "Field Medic", text = "Revives downed allies 30% faster." },
+        brave         = { name = "Brave", text = "25% less stress gain.", later = "stress (phase 8)" },
+        stalwart      = { name = "Stalwart Shield", text = "Causes 10% more threat, so a single big hit from an ally won't pull enemies off them.", only = "tank" },
+        selfless      = { name = "Selfless", text = "Once per fight, when an ally is about to go down, draws the enemies hitting them onto themself." },
+        night_owl     = { name = "Night Owl", text = "+8% damage on high-darkness missions.", later = "darkness (phase 10)" },
+        quartermaster = { name = "Quartermaster", text = "Expedition supplies last 25% longer.", later = "supplies (phase 10)" },
+        lucky         = { name = "Lucky", text = "Better odds on rare affixes from chests they open.", later = "chests and affixes (phases 10 and 12)" },
+        field_medic   = { name = "Field Medic", text = "Once per fight, gets a downed ally back on their feet after 15 seconds, even mid-fight." },
     },
     negative = {
-        coward        = { name = "Coward", text = "Flees combat below 20% health." },
-        greedy        = { name = "Greedy", text = "10% chance to pocket a drop from the armory." },
-        clumsy        = { name = "Clumsy", text = "Occasionally pulls an extra pack on expeditions." },
-        glass_jaw     = { name = "Glass Jaw", text = "Takes 8% more damage from crits." },
-        restless      = { name = "Restless", text = "Gains stress each time they're benched for a mission." },
-        hates_dark    = { name = "Hates the Dark", text = "Double stress gain when torches run low." },
-        hothead       = { name = "Hothead", text = "Sometimes charges the next pack before the healer is ready." },
+        coward        = { name = "Coward", text = "Panics and runs for a few seconds when below 20% health (once per fight)." },
+        greedy        = { name = "Greedy", text = "10% chance to pocket a drop before it reaches the armory. It turns up again if they ever fall." },
+        clumsy        = { name = "Clumsy", text = "Sometimes stumbles into a second pack in the middle of a fight." },
+        glass_jaw     = { name = "Glass Jaw", text = "Takes 8% more damage from melee and ranged crits." },
+        restless      = { name = "Restless", text = "Gains stress each time they're benched for a mission.", later = "stress (phase 8)" },
+        hates_dark    = { name = "Hates the Dark", text = "Double stress gain when torches run low.", later = "stress and darkness (phases 8 and 10)" },
+        hothead       = { name = "Hothead", text = "Sometimes charges the next pack right after a fight, before the healer is ready." },
     },
+}
+
+-- What the working traits do (wb_traits.lua). Everything happens on missions only, except the
+-- hidden auras, which are always on. chance = per fight (0.25 = one fight in four).
+Config.trait_effects = {
+    auras     = { stalwart = 102000, glass_jaw = 102001 }, -- hidden spells (sql/updates/004_trait_spells.sql)
+    check_ms  = 1000,     -- how often heroes on a mission are checked
+    coward    = { below = 20, seconds = 4 },           -- health %; how long they run
+    selfless  = { below = 25, range = 40 },            -- an ally under this health %; yards from them
+    field_medic = { after = 15 },                      -- seconds down before the Field Medic gets them up
+    greedy    = { chance = 0.10 },                     -- per armory item looted while they're in the party
+    clumsy    = { chance = 0.20, after = 4, range = 30 },  -- seconds into a fight; yards to the extra pack
+    hothead   = { chance = 0.25, after = 2, range = 40 },  -- seconds after a fight ends; yards to the pack
 }
 
 -- One-line backstories for recruits, picked at random.

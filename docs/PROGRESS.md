@@ -2,12 +2,36 @@
 
 ## Current phase
 
-**Act I playtest fixes** (2026-11-01). Phases 1-6 are built and Act I is playable. The owner's
-first playtest found five problems (see `docs/TEST-QUEUE.md`, test 2's result); all fixed, automated
-tests 134/134 (with the restart test). **Next:** the owner replays the session
-(`docs/TEST-SESSION.md`) to cover what the first playtest didn't reach (wounds, memorial, abandon,
-relog, most of the armory), then **phase 7: traits**. Also planned: one download bundling all the
-owner's games (`docs/BUNDLE.md`).
+**Phase 7: traits — built 2026-11-01.** Waiting for the owner's in-game check (`docs/TEST-QUEUE.md`
+test 7, also steps 21-22 of `docs/TEST-SESSION.md`) and the replay of the Act I playtest (owner said
+"start phase 7" before replaying). **Next:** record the replay's results and fix what's found, then
+phase 8 (stress). The bundle plan is settled (`docs/BUNDLE.md`), not built.
+
+## Phase 7: Traits and personalities — built 2026-11-01
+
+Automated tests passed (144/144; the restart test passed in the run before, 150/152, whose two
+failures were test timing, fixed in the last run).
+
+- [x] `wb_traits.lua`: eight traits work now, each announced in chat with its name in brackets:
+      | Trait | What it does now |
+      |---|---|
+      | Stalwart Shield (tanks) | hidden aura: +10% threat |
+      | Glass Jaw | hidden aura: +8% damage taken from melee and ranged crits |
+      | Coward | below 20% health in a fight: feared (runs) for 4 s, once per fight |
+      | Selfless | an ally under 25% health within 40 yd: the monsters hitting them get enough threat to turn on the Selfless hero, once per fight |
+      | Field Medic | someone down for 15 s: back up (wounded, like any save), once per fight |
+      | Greedy | 10% per looted weapon/armour: pocketed (kept hidden in the armory table); comes back when that hero dies for good |
+      | Clumsy | 20% of fights: 4 s in, the nearest idle visible pack within 30 yd attacks them |
+      | Hothead | 25% of fights: 2 s after the fight, the nearest idle visible pack within 40 yd attacks them |
+- [x] Pulls never touch bosses, so the mission target can't be pulled early
+- [x] Hidden auras are server-only spells in `spell_dbc` (`sql/updates/004_trait_spells.sql`, ids 102000+)
+- [x] Six traits wait for later systems and say so in their tooltip ("Not active yet: starts working
+      with stress (phase 8)" etc.): Brave, Restless, Hates the Dark, Night Owl, Quartermaster, Lucky
+- [x] All numbers in `Config.trait_effects`
+- [x] Also fixed: the board could deal three Short contracts (the picker now always mixes dungeons
+      and lengths when it can); starter gear could pick items needing a reputation (Tranquillien),
+      which can't be worn, so the commander got 5 pieces instead of 7
+- [ ] Owner: in-game test (test 7)
 
 - [x] Armory tooltips stuck on "Retrieving item information": items are now pre-fetched (a hidden
       tooltip makes the client ask the server) and the window redraws once they're known
@@ -198,7 +222,9 @@ dungeon (in-game test passed 2026-11-01).
 - Shadowfang Keep's Medium and Long runs need the courtyard door opened by talking to the
   prisoner after Rethilgore (Sorcerer Ashcrombe / Deathstalker Adamant); the Deadmines' gate needs
   the cannon used on the big door. The commander has to do those by hand; bots won't.
-- Traits are rolled and shown but do nothing yet (phase 7).
+- Six traits do nothing yet (they need stress, darkness, supplies or chests); their tooltips say so.
+- Coward uses a plain "feared" state: the hero runs in a random direction, possibly into another pack.
+- Clumsy and Hothead only pull monsters the hero can see; in twisty caves that's sometimes nobody.
 - The hero pool shrinks by every hero who dies or retires. 500 is plenty for now; re-running
   `sql/updates/002_hero_pool.sql` (server stopped) tops it up from playerbots' new characters.
 - Act I dungeons are tuned for levels 13-25 and a commander starts at 10, so the first missions are
@@ -233,6 +259,12 @@ dungeon (in-game test passed 2026-11-01).
 | 2026-11-01 | Playerbots' own gear help is off: `AutoEquipUpgradeLoot`, `MaintenanceCommand`, `AutoGearCommand(AltBots)` = 0 | Heroes re-equipped spare gear by themselves; autogear/maintenance hand out free gear and enchants outside the closed economy |
 | 2026-11-01 | **One download for all the owner's games** (Scholomance Survival, Warband, future ones) for the friend | Owner's goal; plan in `docs/BUNDLE.md` |
 | 2026-11-01 | Bundle: **two server builds** (master for Scholomance, playerbots fork for Warband), a **new repo `wow-games-bundle`**, **one update file** for all games | Owner's answers; nothing to re-test, each game repo stays about its game, the friend gets one file per update |
+| 2026-11-01 | **Field Medic changed** (check with owner): "once per fight, gets a downed ally up after 15 s, even mid-fight" instead of "revives 30% faster" | After a fight everyone down is saved automatically within ~3 s, and most resurrection spells can't be cast in combat, so a faster revive would almost never matter |
+| 2026-11-01 | **Selfless** acts on an ally *about to go down* (under 25% health), by turning the monsters onto the Selfless hero; no shield | "Downed" heroes are really dead in death's door v1, so nothing can taunt for them; a shield would need a custom spell per level |
+| 2026-11-01 | **Stalwart Shield** = +10% threat only | "Never loses aggro to a single crit" is what extra threat does; there's no separate crit rule to hook |
+| 2026-11-01 | **Greedy**'s pocketed items come back to the armory when that hero dies for good | Same as their bag gear; the loss stings but isn't forever |
+| 2026-11-01 | Glass Jaw covers melee and ranged crits, not spell crits | The server has no working "spell crit damage taken" aura; most dungeon damage is melee |
+| 2026-11-01 | Custom spell ids for Warband: 102000-102099 | Like the Scholomance project: a 9100000+ spell id would make the server reserve room for 9 million spells |
 | 2026-11-01 | **Materials are one number for now**, not real trade-good items; looted trade goods add 1 each | The design wants real trade goods by tier for crafting; that only matters once the blacksmith exists (phase 11/12), where we'll revisit it |
 | 2026-11-01 | Selling turns vendor price into company gold at 1/400 (a level-15 green ~15 gold) | Company gold is counted in whole "gold pieces" sized for mission rewards; real vendor prices would be tiny |
 | 2026-11-01 | Only the commander and heroes in the party (online) can be equipped | Offline characters can't be changed safely while the server runs |
@@ -268,4 +300,5 @@ dungeon (in-game test passed 2026-11-01).
 | Lua errors in hooks go to `warband_log` (`Log.Safe`) | Errors readable without the worldserver console | Wrap more handlers as they're written |
 | Restart test drives `ServerLauncher.exe --stop/--start` and waits for "ready..." | Restart persistence checked automatically | |
 | Phase 5: death tests with `.wbdev down / bleed / clear / revive` (2026-11-01) | Deaths, saves, wipes in seconds instead of real fights | Lesson: check the real effect (XP gained, alive), not just what the script computed: a weak check hid the kill-XP bug for a phase |
+| Phase 7: `.wbdev trait / traitset / aggro / calm / hp` set a trait, force its chance to 100%, start and end fights on demand (2026-11-01) | Every behaviour trait checked in about 3 minutes instead of waiting for random rolls | Lesson: wait for the fight to really start (a far monster walks for a while) before testing health triggers |
 | Phase 3 scenario: tavern, hiring, calling heroes, a mission with a hero (2026-11-01) | Whole suite 48 checks in about 5 minutes | Switch on the parallel lanes from the Scholomance bot (already in `wb_testbot.py`) once a run passes ~8 minutes |

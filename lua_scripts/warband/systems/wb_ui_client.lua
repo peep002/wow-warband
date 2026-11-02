@@ -419,7 +419,9 @@ local function TraitTooltip(self)
     GameTooltip:SetOwner(self, "ANCHOR_TOP")
     GameTooltip:AddLine(self.trait.name, unpack(self.color))
     GameTooltip:AddLine(self.trait.text, 1, 1, 1, true)
-    GameTooltip:AddLine("Traits take effect in a later phase.", 0.6, 0.6, 0.6, true)
+    if self.trait.later then
+        GameTooltip:AddLine("Not active yet: starts working with " .. self.trait.later .. ".", 0.6, 0.6, 0.6, true)
+    end
     GameTooltip:Show()
 end
 
