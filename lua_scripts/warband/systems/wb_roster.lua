@@ -10,6 +10,7 @@
 --
 --   Roster.List(player)            the company's heroes (alive first), each a table
 --   Roster.Get(player, guid)       one hero of this company, or nil
+--   Roster.OwnerOf(heroGuid)       the commander guid a hero belongs to, or nil
 --   Roster.Alive(player)           how many heroes are alive
 --   Roster.PartyHeroes(player)     heroes that are online in the commander's group
 --   Roster.Call(player, guid)      returns ok, message
@@ -27,6 +28,7 @@ local Log     = require("wb_log")
 local Roster = {}
 
 local PLAYER_EVENT_ON_LOGIN = 3
+local PLAYER_EVENT_ON_LEVEL_CHANGE = 13
 
 local heroes = {}       -- [commander guid] = { [hero guid] = hero }
 local owner = {}        -- [hero guid] = commander guid, for every loaded hero
@@ -102,6 +104,9 @@ function Roster.List(player)
     for _, h in pairs(heroes[player:GetGUIDLow()] or {}) do
         local online = GetPlayerByGUID(GetPlayerGUID(h.guid))
         if online then h.level = online:GetLevel() end
+        -- Not set up yet (never called): the character is still level 1 in the database, but
+        -- it will arrive at the level it was hired at.
+        if not h.set_up then h.level = h.start_level end
         list[#list + 1] = h
     end
     table.sort(list, function(a, b)
@@ -109,6 +114,11 @@ function Roster.List(player)
         return a.name < b.name
     end)
     return list
+end
+
+-- The commander guid a hero belongs to (heroes of online commanders only), or nil.
+function Roster.OwnerOf(heroGuid)
+    return owner[heroGuid]
 end
 
 function Roster.Get(player, guid)
@@ -235,6 +245,22 @@ end
 
 RegisterPlayerEvent(PLAYER_EVENT_ON_LOGIN, Log.Safe("roster login", function(event, player)
     if player:IsBot() then OnHeroLogin(player) end
+end))
+
+-- A hero levels up: playerbots doesn't do this for bots a player controls, so teach the new
+-- class spells and spend the new talent points along the recruited spec.
+RegisterPlayerEvent(PLAYER_EVENT_ON_LEVEL_CHANGE, Log.Safe("hero level", function(event, bot)
+    local commanderGuid = owner[bot:GetGUIDLow()]
+    if not commanderGuid or not bot:IsBot() then return end
+    local h = heroes[commanderGuid][bot:GetGUIDLow()]
+    if not h.set_up then return end -- the first set-up levels the hero itself
+    local factory = CreatePlayerbotFactory(bot, bot:GetLevel(), Config.heroes.gear_quality, 0)
+    factory:InitSkills()
+    factory:InitClassSpells()
+    factory:InitAvailableSpells()
+    factory:InitTalentsBySpecNo(bot, h.spec_no, true)
+    bot:SaveToDB()
+    h.level = bot:GetLevel()
 end))
 
 -- A commander logs in: load the roster, link the accounts, bring back the party.

@@ -77,3 +77,30 @@ Typed backups (also work without the window): `.warband roster`, `.warband taver
 Tell me if the cards are hard to read, too cramped, or missing something you'd want to see.
 
 **Result:** (waiting)
+
+## Test 4: Act I and experience (phase 4)
+
+Use the company from test 3 (or a new one with 4 heroes hired).
+
+1. Open the **Missions** tab.
+   - **Expect:** top right says "Act 1: The Hamlet - main missions 0 of 4, then the gate (level cap 20)".
+     The list shows up to 3 contracts; at level 10 those are Ragefire Chasm's and the Deadmines'
+     short runs. Each contract's Rewards says how many levels of experience it's worth.
+2. Call your heroes, **Embark** on one, and fight through to the target boss (the Objective line
+   names it). Watch your XP bar while you fight: monsters give very little (a tenth).
+   - **Expect:** after the boss, "Mission complete!", then a line with everyone's experience. You and
+     every hero who went gain about 1.5 levels (Short), 2 (Medium) or 2.5 (Long). Heroes who stayed
+     home gain nothing yet.
+3. Back home, open the window again.
+   - **Expect:** "main missions 1 of 4"; a fresh set of contracts (new ones appear as you level:
+     Wailing Caverns from 12, Shadowfang Keep from 14); a new batch of 4 recruits in the Tavern.
+4. Take the **same dungeon** again if it's offered: the bosses are back (a fresh copy every time).
+5. Optional, for the gate without playing 4 missions: there's no shortcut for players yet, so this
+   one is for later, once you've played four. After 4 main missions the board shows
+   **The Brotherhood's Last Stand** (orange "Gate"): the full Deadmines to Edwin VanCleef. You need
+   to use the cannon on the big door yourself; bots won't.
+6. Check a hero's talents after they level up (inspect them): the new points are spent.
+
+Tell me how the pace feels: too fast, too slow, too hard at level 10?
+
+**Result:** (waiting)

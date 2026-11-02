@@ -16,6 +16,10 @@ which also frees their heroes), so nothing of the owner's is touched.
      mission; a new batch of paid recruits arrives; a full roster can't hire.
   7. Abandoning a mission brings everyone home.
   8. (restart) A running mission and the party survive a worldserver restart.
+Phase 4 adds: the board deals Act I contracts that fit your level; kills give 10% XP; a completed
+mission gives about 1.5-2.5 levels to you and your heroes (heroes spend their new talent points);
+act progress; every embark is a fresh copy of the dungeon; abandoning gives a quarter; the gate;
+nobody passes the act's level cap.
 """
 import os
 import subprocess
@@ -27,6 +31,8 @@ import wb_testbot as T
 HUB_MAP, DEADMINES = 0, 36
 MARLOW, MAUDE = 9100000, 9100001
 RHAHKZOR_SPAWN = 79168          # Rhahk'Zor's spawn guid in the Deadmines (world DB creature table)
+VANCLEEF_SPAWN = 79336          # Edwin VanCleef's spawn guid
+DEFIAS_MINER = 598              # a monster near the Deadmines entrance
 FROST_NOVA = 122                # a Mage spell trained at level 10
 LAUNCHER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server-launcher", "ServerLauncher.exe")
 SERVER_LOG = r"C:\Claude\Projects\azerothcore-warband\build\bin\Release\Server.log"
@@ -61,9 +67,9 @@ def roster(bot):
     heroes = {}
     for part in s.get("list", "none").split(","):
         f = part.split(":")
-        if len(f) == 7:
+        if len(f) == 8:
             heroes[f[0]] = dict(cls=int(f[1]), level=int(f[2]), party=f[3] == "1", online=f[4] == "1",
-                                missions=int(f[5]), status=f[6])
+                                missions=int(f[5]), status=f[6], talents=int(f[7]))
     return heroes, s
 
 
@@ -114,29 +120,31 @@ def talk_to(bot, entry):
     return None
 
 
-def embark(bot, r, label, expect_ok=True):
+def embark(bot, r, label, expect_ok=True, key="deadmines_short", contract="Into the Deadmines"):
+    """Put exactly this contract on the board (the board is random), then take it at Marlow."""
+    bot.probe("board " + key)
     menu = talk_to(bot, MARLOW)
     r.check(f"{label}: Sergeant Marlow answers", menu is not None)
     if not menu:
         return False
     asked = time.time()
-    picked = bot.pick(menu, r"Contract: Into the Deadmines")
-    r.check(f"{label}: the board offers Into the Deadmines", picked, " | ".join(t for _, t, _ in menu["options"]))
+    picked = bot.pick(menu, "Contract: " + contract)
+    r.check(f"{label}: the board offers {contract}", picked, " | ".join(t for _, t, _ in menu["options"]))
     sub = bot.wait_menu(asked)
     since = bot.mark()
     ok = sub is not None and bot.pick(sub, r"Embark now")
     r.check(f"{label}: Embark is offered", ok)
     if not expect_ok:
         return bot.wait_chat(r"Only your company's heroes|Call at least", 6, since)
-    s = wait_state(bot, lambda s: num(s, "map") == DEADMINES and s.get("mission") == "deadmines_short")
+    s = wait_state(bot, lambda s: num(s, "map") == DEADMINES and s.get("mission") == key)
     r.check(f"{label}: embarking puts you in the Deadmines on the mission",
-            num(s, "map") == DEADMINES and s.get("mission") == "deadmines_short" and num(s, "state") == 1,
+            num(s, "map") == DEADMINES and s.get("mission") == key and num(s, "state") == 1,
             f"map={s.get('map')} mission={s.get('mission')} state={s.get('state')}")
     return num(s, "map") == DEADMINES
 
 
-def kill_boss(bot):
-    bot.cmd(".go creature %d" % RHAHKZOR_SPAWN)
+def kill_boss(bot, spawn=RHAHKZOR_SPAWN):
+    bot.cmd(".go creature %d" % spawn)
     time.sleep(3)
     return bot.probe("killboss")
 
@@ -170,6 +178,11 @@ def main(bot, r, only=None):
     r.check("1: class spells learned on level-up (Frost Nova)", sp.get("known") == "1")
     log = bot.probe("log")
     r.check("1: company creation is logged", "company_created" in " ".join(log.values()))
+    b = bot.probe("board")
+    offers = [k for k in b.get("board", "").split(",") if k]
+    r.check("1: the board offers Act I contracts a level-10 commander is ready for",
+            len(offers) >= 2 and set(offers) <= {"ragefire_short", "deadmines_short"}, b.get("board"))
+    r.check("1: a new company starts Act I with no progress", num(b, "act") == 1 and num(b, "progress") == 0, str(b))
 
     # 2. Hamlet leash --------------------------------------------------------------------------
     print("Test 2: hamlet leash")
@@ -258,6 +271,12 @@ def main(bot, r, only=None):
         s = wait_state(bot, lambda s: num(s, "map") == DEADMINES, timeout=20)
         r.check("5: leaving the dungeon on a mission puts you back inside", num(s, "map") == DEADMINES,
                 f"map={s.get('map')}")
+        time.sleep(3)
+        k = bot.probe("killnear %d" % DEFIAS_MINER)
+        x = bot.probe("xp")
+        cut_from, cut_to = num(x, "cutfrom"), num(x, "cutto")
+        r.check("5: killing a monster gives 10% of its normal XP", k.get("killed") == "1" and cut_from > 0
+                and cut_to == cut_from // 10, f"normal={cut_from} given={cut_to}")
 
         # 6. Boss kill -------------------------------------------------------------------------
         print("Test 6: boss kill")
@@ -275,6 +294,15 @@ def main(bot, r, only=None):
         heroes, raw = roster(bot)
         r.check("6: the hero on the mission counts it", heroes[names[0]]["missions"] == 1
                 and heroes[names[2]]["missions"] == 0, raw.get("list"))
+        s = state(bot)
+        r.check("6: the commander gains about 1.5 levels (level 11)", num(s, "level") == 11, f"level={s.get('level')}")
+        h0 = heroes[names[0]]
+        r.check("6: the hero who went gains about 1.5 levels (level 11)", h0["level"] == 11, f"level={h0['level']}")
+        r.check("6: the hero spent the new talent points", h0["talents"] == 0, f"unspent={h0['talents']}")
+        r.check("6: a hero who stayed home gains nothing (bench XP comes later)", heroes[names[2]]["level"] == 10)
+        b = bot.probe("board")
+        r.check("6: the main mission counts towards the gate", num(b, "progress") == 1, str(b))
+        r.check("6: the board deals new contracts after a mission", "board_dealt" in " ".join(bot.probe("log").values()))
         recruits, raw = tavern(bot)
         r.check("6: a new batch of 4 recruits arrives", len(recruits) == 4, raw.get("list"))
         r.check("6: new recruits cost gold", recruits and all(x["cost"] > 0 and not x["founding"] for x in recruits),
@@ -283,11 +311,18 @@ def main(bot, r, only=None):
             since = bot.mark()
             bot.cmd(".warband hire " + recruits[0]["name"])
             r.check("6: a full roster can't hire", bot.wait_chat(r"roster is full", 5, since) is not None)
+        time.sleep(11)
+        if embark(bot, r, "6b"):
+            k = kill_boss(bot)
+            r.check("6b: a second run gets a fresh copy (Rhahk'Zor is alive again)", k.get("killed") == "1", str(k))
+            wait_state(bot, lambda s: at_home(s) and s.get("mission") == "none", timeout=30)
+            r.check("6b: two main missions done", num(bot.probe("board"), "progress") == 2)
 
     # 7. Abandon -------------------------------------------------------------------------------
     print("Test 7: abandon")
     time.sleep(11)  # let the return teleport's grace time pass
     if embark(bot, r, "7"):
+        before = bot.probe("xp")
         since = bot.mark()
         bot.cmd(".warband abandon")
         r.check("7: abandoning is confirmed", bot.wait_chat(r"Mission abandoned", 6, since) is not None)
@@ -296,6 +331,35 @@ def main(bot, r, only=None):
                 f"map={s.get('map')} mission={s.get('mission')} state={s.get('state')}")
         log = " ".join(bot.probe("log").values())
         r.check("7: abandoning is logged", "mission_abandoned" in log, log)
+        after = bot.probe("xp")
+        gain = (num(after, "xp") - num(before, "xp")) if num(after, "level") == num(before, "level") else -1
+        expect = 1.5 * 0.25 * num(before, "next")
+        r.check("7: abandoning gives a quarter of the mission's XP", gain > 0 and abs(gain - expect) <= 0.05 * expect + 2,
+                f"gain={gain} expected~{expect:.0f}")
+        r.check("7: an abandoned mission doesn't count towards the gate", num(bot.probe("board"), "progress") == 2)
+
+    # 9. The gate --------------------------------------------------------------------------------
+    print("Test 9: the act gate")
+    time.sleep(11)
+    bot.probe("progress 4")
+    b = bot.probe("board refresh")
+    r.check("9: after 4 main missions the gate is offered", b.get("board", "").startswith("act1_gate"), b.get("board"))
+    if embark(bot, r, "9", key="act1_gate", contract="The Brotherhood's Last Stand"):
+        since = bot.mark()
+        k = kill_boss(bot, VANCLEEF_SPAWN)
+        r.check("9: Edwin VanCleef found and killed", k.get("killed") == "1", str(k))
+        r.check("9: beating the gate is announced", bot.wait_chat(r"The gate falls", 20, since) is not None)
+        wait_state(bot, lambda s: at_home(s) and s.get("mission") == "none", timeout=30)
+        log = " ".join(bot.probe("log").values())
+        r.check("9: beating the gate is logged", "act_gate_beaten" in log, log)
+
+    # 10. Level cap ------------------------------------------------------------------------------
+    print("Test 10: level cap")
+    lvl = num(state(bot), "level")
+    bot.cmd(".levelup %d" % (19 - lvl))
+    time.sleep(1)
+    g = bot.probe("grant 5")
+    r.check("10: mission XP stops at the act's level cap (20)", num(g, "level") == 20, str(g))
 
     # 8. Restart -------------------------------------------------------------------------------
     if restart:

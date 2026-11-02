@@ -7,6 +7,7 @@
 --   * Older characters that were never made commanders are left alone.
 --
 --   Company.Get(player)          the company table, or nil if not a commander
+--   Company.GetByGuid(guid)      the same by commander guid (online commanders only)
 --   Company.IsCommander(player)
 --   Company.Save(player)         write the cached company back to the database
 --   Company.OnReady(fn)          fn(player, company) after a commander logs in (or is created)
@@ -27,7 +28,7 @@ local CLASS_DEATH_KNIGHT = 6
 local cache = {}   -- [guid] = company table
 local readyHandlers = {}
 
-local FIELDS = { "act", "gold", "renown", "materials", "threat", "tier", "ironman", "state" }
+local FIELDS = { "act", "progress", "gold", "renown", "materials", "threat", "tier", "ironman", "state" }
 
 local function Load(guid)
     local q = CharDBQuery("SELECT `" .. table.concat(FIELDS, "`, `") .. "` FROM `warband_company` WHERE `guid` = " .. guid)
@@ -43,6 +44,11 @@ end
 
 function Company.Get(player)
     return player and cache[player:GetGUIDLow()]
+end
+
+-- By commander guid; only commanders who are online (their company is cached).
+function Company.GetByGuid(guid)
+    return cache[guid]
 end
 
 function Company.IsCommander(player)

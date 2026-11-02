@@ -2,9 +2,34 @@
 
 ## Current phase
 
-**Phase 3: Tavern and roster** — built 2026-11-01, automated tests 48/48 (52 with the restart
-test), **waiting for the owner's in-game test** (`docs/TEST-QUEUE.md`, test 3). The owner chose
-to continue before testing phase 2 in game; test 2 is still queued.
+**Phase 4: Mission XP and Act I** — built 2026-11-01, automated tests 82/82 (with the restart
+test), **waiting for the owner's in-game test** (`docs/TEST-QUEUE.md`, test 4). In-game tests 2
+and 3 are also still queued.
+
+- [x] Act I contracts (`Config.dungeons`): Ragefire Chasm, Wailing Caverns, the Deadmines,
+      Shadowfang Keep, each in Short / Medium / Long (the Deadmines' Long run is the gate):
+      | Dungeon | Short | Medium | Long |
+      |---|---|---|---|
+      | Ragefire Chasm | Oggleflint | Taragaman the Hungerer | Bazzalan |
+      | Wailing Caverns | Lady Anacondra | Lord Pythas | Verdan the Everliving |
+      | The Deadmines | Rhahk'Zor | Gilnid | (gate: Edwin VanCleef) |
+      | Shadowfang Keep | Rethilgore | Baron Silverlaine | Archmage Arugal |
+- [x] Board (`wb_board.lua`, table `warband_board`): 3 contracts that fit the commander's level,
+      different dungeons where possible, kept until the next mission ends (and through restarts)
+- [x] Act progress (`warband_company.progress`): 4 main missions, then the gate is offered; beating
+      it opens the next act (Act II isn't built yet, so the board keeps offering Act I)
+- [x] XP (`wb_xp.lua`): kills give 10%; a completed mission gives the commander and every hero who
+      went about Short 1.5 / Medium 2 / Long 2.5 / gate 3 levels' worth; abandoning gives a quarter;
+      nobody passes the act's level cap (20 in Act I)
+- [x] Heroes level up properly: new class spells and talent points spent along their spec
+- [x] Every embark is a fresh copy of the dungeon (old saved copies are forgotten)
+- [x] Window: act line ("Act 1: The Hamlet - main missions 1 of 4, then the gate (level cap 20)"),
+      gate contracts marked, XP explained under Rewards
+- [ ] Owner: in-game test
+
+## Phase 3: Tavern and roster — built 2026-11-01
+
+Automated tests passed (48/48); the owner's in-game test (`docs/TEST-QUEUE.md`, test 3) is waiting.
 
 - [x] Hero pool: 500 playerbots characters (all classes, both factions) moved to the WBHEROES
       account (`sql/updates/002_hero_pool.sql`); commander accounts are linked to it so they can
@@ -89,13 +114,18 @@ dungeon (in-game test passed 2026-11-01).
   releases and resurrects the normal way; the leash leaves dead players alone.
 - Monsters still drop coin (the closed economy's "no monster coin" comes with the economy, phase 6).
 - Starter gear for new commanders isn't given yet: they keep their level-1 clothes (phase 6, armory).
-- Heroes get no XP or level-ups yet, and talent points beyond level 10 aren't spent (phase 4).
+- Heroes who sit out a mission get no XP yet (the Training Yard's bench XP is phase 11).
+- Heroes keep the gear they were set up with; it goes stale as they level (armory, phase 6).
+- Shadowfang Keep's Medium and Long runs need the courtyard door opened by talking to the
+  prisoner after Rethilgore (Sorcerer Ashcrombe / Deathstalker Adamant); the Deadmines' gate needs
+  the cannon used on the big door. The commander has to do those by hand; bots won't.
 - Company gold only changes by hiring (start 150, recruits cost 40 + 4 per level); missions pay
   nothing yet (phase 6). Traits are rolled and shown but do nothing yet (phase 7).
 - The hero pool shrinks by every hero who dies or retires. 500 is plenty for now; re-running
   `sql/updates/002_hero_pool.sql` (server stopped) tops it up from playerbots' new characters.
-- Recommended level for the Deadmines contract is 15–20, but commanders start at 10 and there's
-  no mission XP yet (phase 4). Bring bots and expect it to be hard, or use `.levelup` for testing.
+- Act I dungeons are tuned for levels 13-25 and a commander starts at 10, so the first missions are
+  hard: the board only offers what the commander's level is ready for (Ragefire and the Deadmines'
+  Short at 10). Balance comes once we've played it.
 
 ## Decisions
 
@@ -113,6 +143,10 @@ dungeon (in-game test passed 2026-11-01).
 | 2026-11-01 | Mixed Alliance/Horde groups allowed in worldserver.conf | The design's tavern has all races of both factions |
 | 2026-11-01 | Embarking needs 1 hero for now (`min_party`), not 4 | Easier testing while the tavern is new; raise to 4 when Act I is playable |
 | 2026-11-01 | New heroes get playerbots' auto-gear (green quality) when first set up | Until the armory (phase 6) decides how heroes get gear |
+| 2026-11-01 | Mission XP counted in "levels at your current level": Short 1.5, Medium 2, Long 2.5, gate 3 | Averages the design's ~2 levels per main mission; longer runs pay more, as the design says (my numbers, all in `Config.xp`) |
+| 2026-11-01 | **Level cap per act** (Act I: 20) until the gate is beaten | My addition: stops side missions and repeats from over-levelling an act (one line in `Config.acts` to change) |
+| 2026-11-01 | Mission ends at a target boss per length (table above); Wailing Caverns' Long ends at Verdan, not Mutanus | Mutanus only appears after an escort event bots can't be relied on for |
+| 2026-11-01 | The board offers 3 main missions for now | Side missions (the other 2-4 slots) come with mission types in phase 10 |
 | 2026-11-01 | Raven Hill's own NPCs (Jitters, Bliztik, the invisible Unseen) are hidden | Jitters is Alliance and would attack Horde commanders; Bliztik is a vendor (closed economy) |
 | 2026-11-01 | Hub: Raven Hill, Duskwood | Design's proposal |
 | 2026-11-01 | Commander can't die for good; optional Ironman mode | Design's recommendation |

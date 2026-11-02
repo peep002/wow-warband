@@ -154,6 +154,9 @@ local function MakeFrame()
     local listLabel = Text(page, "GameFontNormal")
     listLabel:SetPoint("TOPLEFT", 4, 0)
     listLabel:SetText("Contracts on the board")
+    f.actLine = Text(page, "GameFontHighlightSmall", 0.8, 0.8, 0.8)
+    f.actLine:SetPoint("TOPRIGHT", -4, 0)
+    f.actLine:SetJustifyH("RIGHT")
     f.list = Inset(page)
     f.list:SetPoint("TOPLEFT", 0, -16)
     f.list:SetPoint("BOTTOMLEFT", 0, 0)
@@ -265,8 +268,8 @@ local function DrawDetail(m, onMission)
     d.icon:SetTexture(m.icon or QUESTION)
     d.banner:SetText(onMission and "ON MISSION" or "")
     d.name:SetText(m.name)
-    d.facts:SetText(string.format("%s   |   %s mission   |   %s   |   Recommended level %s",
-        m.dungeon, Cap(m.kind), m.length, m.level))
+    d.facts:SetText(string.format("%s   |   %s   |   %s   |   Recommended level %s",
+        m.dungeon, m.kind == "gate" and "|cffff8020Act gate|r" or (Cap(m.kind) .. " mission"), m.length, m.level))
     d.objective:SetText("Objective: |cffffffff" .. (m.objective or "") .. "|r")
     d.text:SetText(m.text or "")
     d.rewards:SetText(m.rewards or "")
@@ -291,6 +294,10 @@ local function DrawDetail(m, onMission)
 end
 
 local function DrawMissions()
+    frame.actLine:SetText(data.progress >= data.mainsBeforeGate
+        and string.format("Act %d: %s  -  |cffff8020the gate is open|r  (level cap %d)", data.act, data.actName, data.levelCap)
+        or string.format("Act %d: %s  -  main missions %d of %d, then the gate  (level cap %d)", data.act, data.actName,
+            data.progress, data.mainsBeforeGate, data.levelCap))
     local onMission = data.active ~= nil
     local list = onMission and { data.active } or data.offers
     if onMission then selected = data.active.key end
@@ -304,7 +311,7 @@ local function DrawMissions()
         r.key = m.key
         r.icon:SetTexture(m.icon or QUESTION)
         r.name:SetText(m.name)
-        r.sub:SetText(string.format("%s  -  %s, %s", m.dungeon, Cap(m.kind), m.length))
+        r.sub:SetText(string.format("%s  -  %s, %s", m.dungeon, m.kind == "gate" and "|cffff8020Gate|r" or Cap(m.kind), m.length))
         Shown(r.sel, m.key == selected)
         r:Show()
         if m.key == selected then current = m end

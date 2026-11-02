@@ -1,7 +1,11 @@
 -- wb_missions.lua
--- Missions: the board's offers, embarking, finishing on the target boss's death, and coming
--- home. The active mission is saved in warband_missions (status 'active') and the company's
--- state says whether it's in the hamlet (0) or out on a mission (1), so both survive a restart.
+-- Missions: embarking, finishing on the target boss's death, rewards, and coming home. The board's
+-- offers come from wb_board. The active mission is saved in warband_missions (status 'active') and
+-- the company's state says whether it's in the hamlet (0) or out on a mission (1), so both survive
+-- a restart.
+--   * Each embark starts a fresh copy of the dungeon (old saved copies are forgotten first).
+--   * Rewards: experience for the commander and the heroes who went (wb_xp), act progress for main
+--     missions, and beating the gate opens the next act.
 --
 --   Missions.Offers(player)       the list of mission keys the board offers right now
 --   Missions.Active(player)       { id =, key =, def = } of the running mission, or nil
@@ -18,6 +22,8 @@ local Config  = require("wb_config")
 local Company = require("wb_company")
 local Log     = require("wb_log")
 local Roster  = require("wb_roster")
+local Board   = require("wb_board")
+local XP      = require("wb_xp")
 
 local Missions = {}
 
@@ -32,7 +38,7 @@ local function Changed(player) for _, fn in ipairs(changeHandlers) do fn(player)
 function Missions.OnFinish(fn) finishHandlers[#finishHandlers + 1] = fn end
 
 function Missions.Offers(player)
-    return Config.board
+    return Board.Get(player)
 end
 
 function Missions.Active(player)
@@ -85,15 +91,37 @@ local function Finish(player, status)
         c.state = STATE_HAMLET
         Company.Save(player)
     end
-    -- Heroes who came home from a completed mission count it.
-    if status == "done" then
-        for _, hero in ipairs(Roster.PartyHeroes(player)) do
+    -- Experience for everyone who went; heroes who came home from a completed mission count it.
+    local worth = m.def.xp * (status == "done" and 1 or Config.xp.abandoned)
+    local gained = { player:GetName() .. " +" .. XP.Grant(player, worth) }
+    for _, hero in ipairs(Roster.PartyHeroes(player)) do
+        gained[#gained + 1] = hero:GetName() .. " +" .. XP.Grant(hero, worth)
+        if status == "done" then
             CharDBExecute("UPDATE `warband_heroes` SET `missions` = `missions` + 1 WHERE `guid` = " .. hero:GetGUIDLow())
             local h = Roster.Get(player, hero:GetGUIDLow())
             if h then h.missions = h.missions + 1 end
         end
     end
+    player:SendBroadcastMessage(string.format("|cffffd100[Warband]|r Experience: about %.1f levels' worth each (%s).",
+        worth, table.concat(gained, ", ")))
+    if c and status == "done" then
+        if m.def.kind == "main" then
+            c.progress = c.progress + 1
+        elseif m.def.kind == "gate" then
+            if Config.acts[c.act + 1] then
+                c.act, c.progress, c.threat = c.act + 1, 0, 0
+                player:SendBroadcastMessage(string.format("|cff20ff20[Warband] The gate falls! Act %d: %s begins.|r",
+                    c.act, Config.acts[c.act].name))
+            else
+                player:SendBroadcastMessage("|cff20ff20[Warband] The gate falls!|r The next act isn't built yet "
+                    .. "(phase 12); until then the board keeps offering this act's contracts.")
+            end
+            Log.Event(guid, "act_gate_beaten", m.key)
+        end
+        Company.Save(player)
+    end
     Log.Event(guid, "mission_" .. status, m.key)
+    Board.Refresh(player)
     Missions.SendHome(player)
     for _, fn in ipairs(finishHandlers) do fn(player, status) end
     Changed(player)
@@ -117,6 +145,10 @@ function Missions.Embark(player, key)
     if #Missions.PartyBots(player) > #heroes then
         return false, "Only your company's heroes can march. Send other bots away first (.playerbots bot remove NAME)."
     end
+
+    -- A fresh copy of the dungeon: forget any saved copy the party still has from before.
+    player:UnbindInstance(def.map, 0)
+    for _, hero in ipairs(heroes) do hero:UnbindInstance(def.map, 0) end
 
     -- Synchronous, so the new row's id can be read straight back.
     CharDBQuery(string.format("INSERT INTO `warband_missions` (`company`, `mission_key`) VALUES (%d, '%s')", c.guid, key))

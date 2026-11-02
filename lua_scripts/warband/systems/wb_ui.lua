@@ -57,12 +57,17 @@ end
 local function MissionData(key)
     local d = Config.missions[key]
     return { key = key, name = d.name, dungeon = d.dungeon, kind = d.kind, length = d.length, level = d.level,
-             icon = d.icon, text = d.text, objective = d.objective, rewards = d.rewards }
+             icon = d.icon, text = d.text, objective = d.objective,
+             rewards = string.format("Experience: about %.1f levels for you and every hero who goes "
+                 .. "(a quarter of that if you abandon).%s\nGear, gold and renown come in later phases.",
+                 d.xp, d.kind == "main" and " Counts towards the act's gate." or (d.kind == "gate" and " Beat it to open the next act." or "")) }
 end
 
 local function Build(player)
     local c = Company.Get(player)
-    local data = { commander = player:GetName(), act = c.act, gold = c.gold, renown = c.renown,
+    local act = Config.acts[c.act] or Config.acts[#Config.acts]
+    local data = { commander = player:GetName(), act = c.act, actName = act.name, progress = c.progress,
+                   mainsBeforeGate = act.mains_before_gate, levelCap = act.max_level, gold = c.gold, renown = c.renown,
                    materials = c.materials, onMission = c.state ~= 0, offers = {}, party = {}, roster = {}, recruits = {},
                    slots = Config.heroes.roster_slots, alive = Roster.Alive(player), maxParty = Config.heroes.max_party,
                    minParty = Config.heroes.min_party, foundingLeft = Tavern.FoundingLeft(player) }

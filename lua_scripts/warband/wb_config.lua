@@ -127,33 +127,115 @@ Config.lockdown = {
     hearthstone   = 6948, -- item removed from new commanders
 }
 
+-- Acts ---------------------------------------------------------------------------------------
+-- Each act is 10 levels. Its main missions count towards the gate; after mains_before_gate of
+-- them the gate mission is offered, and beating it opens the next act.
+Config.acts = {
+    [1] = { name = "The Hamlet", min_level = 10, max_level = 20, mains_before_gate = 4, gate = "act1_gate" },
+}
+
+-- Experience -------------------------------------------------------------------------------------
+-- Mission XP is counted in "levels": 2.0 = as much XP as two level-ups at the hero's level.
+-- Nobody can level past the current act's max_level until the gate is beaten.
+Config.xp = {
+    kill_rate = 0.10,     -- monsters give 10% of their normal XP to commanders and heroes
+    by_length = { Short = 1.5, Medium = 2.0, Long = 2.5 }, -- a completed main mission
+    gate      = 3.0,      -- a completed gate mission
+    side      = 0.10,     -- side missions (phase 10) give this share of a main mission's XP
+    abandoned = 0.25,     -- an abandoned (retreated) mission gives this share
+}
+
 -- Missions -----------------------------------------------------------------------------------
--- kind: "main" or "side". length: "Short", "Medium" or "Long".
--- entrance: where the warband arrives inside the dungeon. boss: creature entry whose death
--- completes the mission.
-Config.missions = {
-    deadmines_short = {
-        name     = "Into the Deadmines",
-        dungeon  = "The Deadmines",
-        kind     = "main",
-        length   = "Short",
-        level    = "15-20",
-        icon     = "Interface\\Icons\\INV_Misc_Bomb_05",
-        text     = "The Defias Brotherhood is digging under Moonbrook. Go in, find the ogre "
-                .. "foreman Rhahk'Zor, and put him down. Come straight back after.",
-        objective = "Kill Rhahk'Zor",
-        map      = 36,
+-- The board offers Config.board.offers contracts from the current act. Each dungeon has up to
+-- three lengths; a mission ends when its target boss dies:
+--   Short = the first boss or two, Medium = about half the dungeon, Long = a full clear.
+-- entrance: where the warband arrives inside. min_level: offered once the party's average level
+-- (commander included) is at least this.
+Config.board = {
+    offers = 3,
+}
+
+Config.dungeons = {
+    ragefire = {
+        name = "Ragefire Chasm", act = 1, map = 389, level = "13-18",
+        entrance = { x = 3.81, y = -14.82, z = -17.84, o = 4.39 },
+        icon = "Interface\\Icons\\Spell_Fire_Fire",
+        text = "Under Orgrimmar, the Burning Blade cult and a pack of troggs have dug into the fire caves. "
+            .. "Someone is paying well to see them gone.",
+        missions = {
+            Short  = { name = "Smoke in the Chasm", boss = 11517, boss_name = "Oggleflint", min_level = 10 },
+            Medium = { name = "The Hungerer", boss = 11520, boss_name = "Taragaman the Hungerer", min_level = 11 },
+            Long   = { name = "Burning Blades", boss = 11519, boss_name = "Bazzalan", min_level = 12 },
+        },
+    },
+    wailing = {
+        name = "Wailing Caverns", act = 1, map = 43, level = "15-21",
+        entrance = { x = -163.49, y = 132.9, z = -73.66, o = 5.83 },
+        icon = "Interface\\Icons\\Ability_Hunter_Pet_WindSerpent",
+        text = "The druids of the Fang have twisted the caverns' dream into a nightmare. "
+            .. "Their lords are dangerous, and the deviate beasts worse.",
+        missions = {
+            Short  = { name = "Fangs in the Dark", boss = 3671, boss_name = "Lady Anacondra", min_level = 12 },
+            Medium = { name = "Lord of the Fang", boss = 3670, boss_name = "Lord Pythas", min_level = 13 },
+            Long   = { name = "The Everliving", boss = 5775, boss_name = "Verdan the Everliving", min_level = 14 },
+        },
+    },
+    deadmines = {
+        name = "The Deadmines", act = 1, map = 36, level = "15-21",
         entrance = { x = -16.4, y = -383.07, z = 61.78, o = 1.86 },
-        boss     = 644,       -- Rhahk'Zor
-        rewards  = "Experience, gear, renown (from phase 4 on)",
+        icon = "Interface\\Icons\\INV_Misc_Bomb_05",
+        text = "The Defias Brotherhood is digging under Moonbrook, building something big in the dark.",
+        missions = {
+            Short  = { key = "deadmines_short", name = "Into the Deadmines", boss = 644, boss_name = "Rhahk'Zor", min_level = 10 },
+            Medium = { name = "The Goblin Foundry", boss = 1763, boss_name = "Gilnid", min_level = 13 },
+            -- The Long run is the act's gate (below).
+        },
+    },
+    shadowfang = {
+        name = "Shadowfang Keep", act = 1, map = 33, level = "18-25",
+        entrance = { x = -229.135, y = 2109.18, z = 76.8898, o = 1.267 },
+        icon = "Interface\\Icons\\Ability_Mount_WhiteDireWolf",
+        text = "Archmage Arugal's worgen hold the old keep above Pyrewood. Nobody who goes in at night comes out.",
+        missions = {
+            Short  = { name = "Gates of Shadowfang", boss = 3914, boss_name = "Rethilgore", min_level = 14 },
+            Medium = { name = "The Baron's Hall", boss = 3887, boss_name = "Baron Silverlaine", min_level = 16 },
+            Long   = { name = "Arugal's End", boss = 4275, boss_name = "Archmage Arugal", min_level = 17 },
+        },
     },
 }
 
--- The board offers these for now (phase 2: one fixed mission).
-Config.board = { "deadmines_short" }
+-- Gate missions: one per act, offered once enough main missions are done.
+Config.gates = {
+    act1_gate = {
+        name = "The Brotherhood's Last Stand", dungeon = "deadmines", length = "Long",
+        boss = 639, boss_name = "Edwin VanCleef",
+        text = "This is it: the Brotherhood's whole strength, and Edwin VanCleef on his ship at the end. "
+            .. "Win, and the roads past the hamlet open. (Harder 'hardened' versions come with darkness and modifiers.)",
+    },
+}
 
 Config.mission = {
     return_seconds = 10,  -- after the target boss dies, seconds before everyone is sent home
 }
+
+-- Turns the dungeons and gates above into one Config.missions list, keyed by mission key
+-- ("ragefire_short", "act1_gate"...). Logic code only reads Config.missions.
+Config.missions = {}
+for dkey, d in pairs(Config.dungeons) do
+    for length, m in pairs(d.missions) do
+        local key = m.key or (dkey .. "_" .. length:lower())
+        Config.missions[key] = { key = key, name = m.name, dungeon = d.name, kind = "main", length = length,
+            act = d.act, level = d.level, min_level = m.min_level, icon = d.icon, text = d.text,
+            objective = "Kill " .. m.boss_name, map = d.map, entrance = d.entrance, boss = m.boss,
+            xp = Config.xp.by_length[length] }
+    end
+end
+for key, g in pairs(Config.gates) do
+    local d = Config.dungeons[g.dungeon]
+    Config.missions[key] = { key = key, name = g.name, dungeon = d.name, kind = "gate", length = g.length,
+        act = d.act, level = d.level, min_level = 0, icon = "Interface\\Icons\\INV_Misc_Head_Human_01",
+        text = g.text, objective = "Kill " .. g.boss_name, map = d.map, entrance = d.entrance, boss = g.boss,
+        xp = Config.xp.gate }
+end
 
 return Config
