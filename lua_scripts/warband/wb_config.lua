@@ -159,6 +159,60 @@ Config.death = {
     logout_seconds = 8,    -- a hero who died for good is sent away (logged out) after this
 }
 
+-- Mission rewards (besides experience) ------------------------------------------------------------
+-- Gold and renown for a completed mission. The economy aims at being able to fully restore 2-3
+-- heroes per return (a treatment costs ~45 gold around level 13).
+Config.rewards = {
+    gold   = { Short = 60, Medium = 90, Long = 120, gate = 200 },
+    renown = { Short = 4,  Medium = 6,  Long = 9,   gate = 20 },
+    abandoned_gold = 0.25, -- an abandoned mission pays this share of the gold, and no renown
+    failed_gold    = 0,    -- a failed mission pays nothing
+}
+
+-- The armory ----------------------------------------------------------------------------------------
+-- Every looted weapon and piece of armour goes here. Trade goods (cloth, ore...) become materials;
+-- quest items and consumables stay with whoever looted them. Coin from monsters is taken away
+-- (closed economy). Items nobody on the roster could ever use are salvaged automatically.
+Config.armory = {
+    sell_rate = 1 / 400,    -- selling: company gold per copper of the item's vendor price
+    salvage = { [0] = 0, 1, 2, 5, 10, 20 }, -- materials per item, by quality (grey...legendary)
+    salvage_per_ilvl = 0.1, -- plus this many per item level
+    trade_good = 1,         -- materials per looted trade good (linen cloth, copper ore...)
+    upgrade_margin = 1.03,  -- an item is "an upgrade" when it scores 3% above what's worn
+    quality_score = { [0] = 0.5, 0.8, 1.0, 1.15, 1.3, 1.45 },
+    lower_armor_score = 0.6, -- armour lighter than the class's best counts this much
+}
+
+-- What each class can ever use: armour subclasses (1 cloth, 2 leather, 3 mail, 4 plate, 6 shield)
+-- and weapon subclasses (0 axe, 1 2h axe, 2 bow, 3 gun, 4 mace, 5 2h mace, 6 polearm, 7 sword,
+-- 8 2h sword, 10 staff, 13 fist, 15 dagger, 16 thrown, 18 crossbow, 19 wand).
+-- best_armor = { [level] = subclass }: the armour the class should wear from that level on.
+Config.proficiency = {
+    [1]  = { armor = { 1, 2, 3, 4, 6 }, weapons = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 13, 15, 16, 18 }, best_armor = { [1] = 3, [40] = 4 } },
+    [2]  = { armor = { 1, 2, 3, 4, 6 }, weapons = { 0, 1, 4, 5, 6, 7, 8 }, best_armor = { [1] = 3, [40] = 4 } },
+    [3]  = { armor = { 1, 2, 3 }, weapons = { 0, 1, 2, 3, 6, 7, 8, 10, 13, 15, 16, 18 }, best_armor = { [1] = 2, [40] = 3 } },
+    [4]  = { armor = { 1, 2 }, weapons = { 0, 2, 3, 4, 7, 13, 15, 16, 18 }, best_armor = { [1] = 2 } },
+    [5]  = { armor = { 1 }, weapons = { 4, 10, 15, 19 }, best_armor = { [1] = 1 } },
+    [6]  = { armor = { 1, 2, 3, 4 }, weapons = { 0, 1, 4, 5, 6, 7, 8 }, best_armor = { [1] = 4 } },
+    [7]  = { armor = { 1, 2, 3, 6 }, weapons = { 0, 1, 4, 5, 10, 13, 15 }, best_armor = { [1] = 2, [40] = 3 } },
+    [8]  = { armor = { 1 }, weapons = { 7, 10, 15, 19 }, best_armor = { [1] = 1 } },
+    [9]  = { armor = { 1 }, weapons = { 7, 10, 15, 19 }, best_armor = { [1] = 1 } },
+    [11] = { armor = { 1, 2 }, weapons = { 4, 5, 6, 10, 13, 15 }, best_armor = { [1] = 2 } },
+}
+
+-- A new commander's starter gear: green items for these slots (inventory types), required level
+-- min_level..max_level, in the class's best armour; plus a weapon of the listed kinds.
+Config.starter = {
+    min_level = 6, max_level = 10, quality = 2,
+    armor_slots = { 5, 7, 8, 10, 6, 9 },  -- chest, legs, feet, hands, waist, wrists
+    weapon = {                            -- class = { { subclass, inventory type }, ... }, one picked
+        [1] = { { 1, 17 }, { 5, 17 }, { 8, 17 } }, [2] = { { 5, 17 }, { 8, 17 }, { 1, 17 } },
+        [3] = { { 2, 15 }, { 3, 26 } },           [4] = { { 15, 13 }, { 7, 13 } },
+        [5] = { { 10, 17 } }, [7] = { { 10, 17 }, { 4, 13 } }, [8] = { { 10, 17 } },
+        [9] = { { 10, 17 } }, [11] = { { 10, 17 } },
+    },
+}
+
 -- The infirmary (a building from phase 11; treatment already works from the roster) --------------
 Config.infirmary = {
     cost_base = 20,        -- treating a wound: cost_base + cost_per_level * level, in gold

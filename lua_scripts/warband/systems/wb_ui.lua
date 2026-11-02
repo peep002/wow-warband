@@ -2,7 +2,7 @@
 -- Server half of the Warband window (the window itself is wb_ui_client.lua, which AIO sends to
 -- each player's game client). This file decides what the window shows and checks every click
 -- again, because a client can send anything.
---   * Tabs: Missions, Roster, Tavern, Memorial (Armory and Hamlet come later).
+--   * Tabs: Missions, Roster, Tavern, Armory, Memorial (Hamlet comes later).
 --   * Opens from: Sergeant Marlow (missions), Maude Ashby (tavern), the minimap button, and
 --     chat commands (.warband, .warband roster, .warband tavern).
 --   * Marlow and Maude also have plain menus with the same choices, and the chat commands work
@@ -16,6 +16,7 @@ local Company  = require("wb_company")
 local Missions = require("wb_missions")
 local Roster   = require("wb_roster")
 local Tavern   = require("wb_tavern")
+local Armory   = require("wb_armory")
 local Log      = require("wb_log")
 
 local UI = {}
@@ -58,9 +59,11 @@ local function MissionData(key)
     local d = Config.missions[key]
     return { key = key, name = d.name, dungeon = d.dungeon, kind = d.kind, length = d.length, level = d.level,
              icon = d.icon, text = d.text, objective = d.objective,
-             rewards = string.format("Experience: about %.1f levels for you and every hero who goes "
-                 .. "(a quarter of that if you abandon).%s\nGear, gold and renown come in later phases.",
-                 d.xp, d.kind == "main" and " Counts towards the act's gate." or (d.kind == "gate" and " Beat it to open the next act." or "")) }
+             rewards = string.format("%d gold and %d renown for the company. Experience: about %.1f levels for you "
+                 .. "and every hero who goes. Abandoning pays a quarter of the gold and XP, failing a quarter of the XP.%s",
+                 Config.rewards.gold[d.kind == "gate" and "gate" or d.length] or 0,
+                 Config.rewards.renown[d.kind == "gate" and "gate" or d.length] or 0, d.xp,
+                 d.kind == "main" and " Counts towards the act's gate." or (d.kind == "gate" and " Beat it to open the next act." or "")) }
 end
 
 local function Build(player)
@@ -88,6 +91,17 @@ local function Build(player)
         data.memorial[#data.memorial + 1] = { name = f.name, class = f.class, level = f.level, missions = f.missions,
             race = Config.race_names[f.race] or "?", className = Config.class_names[f.class] or "?", cause = f.cause, died = f.died }
     end
+    data.armory, data.targets = {}, {}
+    local upgrades = Armory.Upgrades(player)
+    for _, it in ipairs(Armory.List(player)) do
+        data.armory[#data.armory + 1] = { id = it.id, entry = it.entry, count = it.count, prop = it.prop, suffix = it.suffix,
+            name = it.name, quality = it.quality, ilvl = it.ilvl, reqlevel = it.reqlevel, invtype = it.invtype,
+            sell = it.sell, salvage = it.salvage, upgrades = upgrades[it.id] or {} }
+    end
+    for _, unit in ipairs(Armory.Targets(player)) do
+        data.targets[#data.targets + 1] = { guid = unit == player and 0 or unit:GetGUIDLow(), name = unit:GetName(),
+            class = unit:GetClass(), level = unit:GetLevel() }
+    end
     for _, r in ipairs(Tavern.Offers(player)) do
         local p = Person(r)
         p.cost, p.founding = r.cost, r.founding
@@ -111,6 +125,7 @@ end
 Missions.OnChange(Update)
 Roster.OnChange(Update)
 Tavern.OnChange(Update)
+Armory.OnChange(Update)
 
 local function Reply(player, ok, message)
     if message then
@@ -144,6 +159,21 @@ AIO.AddHandlers("Warband", {
     end,
     Call = Act(Roster.Call),
     Treat = Act(Roster.Treat),
+    Sell = Act(Armory.Sell),
+    Salvage = Act(Armory.Salvage),
+    Equip = function(player, id, guid)
+        if type(id) ~= "number" or type(guid) ~= "number" then return end
+        Reply(player, Armory.Equip(player, id, guid))
+        Update(player)
+    end,
+    EquipAll = function(player)
+        Reply(player, Armory.EquipAll(player))
+        Update(player)
+    end,
+    SellJunk = function(player)
+        Reply(player, Armory.SellJunk(player))
+        Update(player)
+    end,
     Send = Act(Roster.Send),
     Hire = Act(Tavern.Hire),
 })
@@ -174,6 +204,19 @@ local function PrintRoster(player)
     end
 end
 
+local function PrintArmory(player)
+    local list = Armory.List(player)
+    local upgrades = Armory.Upgrades(player)
+    player:SendBroadcastMessage(string.format("|cffffd100[Warband] Armory|r (%d items)%s", #list, #list == 0 and ": empty." or ":"))
+    for _, it in ipairs(list) do
+        local who = {}
+        for _, u in ipairs(upgrades[it.id] or {}) do who[#who + 1] = u.name end
+        player:SendBroadcastMessage(string.format("  #%d %s%s (item level %d) - sells %d, salvages %d%s", it.id, it.name,
+            it.count > 1 and (" x" .. it.count) or "", it.ilvl, it.sell, it.salvage,
+            #who > 0 and ("  |cff33ff33upgrade for " .. table.concat(who, ", ") .. "|r") or ""))
+    end
+end
+
 local function PrintMemorial(player)
     local list = Roster.Memorial(player)
     player:SendBroadcastMessage("|cffffd100[Warband] Memorial wall|r" .. (#list == 0 and ": nobody yet." or ":"))
@@ -199,6 +242,21 @@ local COMMANDS = {
     roster = function(player) PrintRoster(player); UI.Show(player, "roster") end,
     tavern = function(player) PrintTavern(player); UI.Show(player, "tavern") end,
     memorial = function(player) PrintMemorial(player); UI.Show(player, "memorial") end,
+    armory = function(player) PrintArmory(player); UI.Show(player, "armory") end,
+    equipall = function(player) Reply(player, Armory.EquipAll(player)) end,
+    selljunk = function(player) Reply(player, Armory.SellJunk(player)) end,
+    sell = function(player, arg) Reply(player, Armory.Sell(player, tonumber(arg) or 0)) end,
+    salvage = function(player, arg) Reply(player, Armory.Salvage(player, tonumber(arg) or 0)) end,
+    equip = function(player, arg) -- ".warband equip ID NAME|me"
+        local id, who = arg:match("^(%d+)%s*(%S*)$")
+        local guid = 0
+        if who and who ~= "" and who:lower() ~= "me" then
+            local h = FindByName(Roster.List(player), who)
+            if not h then return Reply(player, false, "No hero called '" .. who .. "' on your roster.") end
+            guid = h.guid
+        end
+        Reply(player, Armory.Equip(player, tonumber(id) or 0, guid))
+    end,
     treat = function(player, arg)
         if arg:lower() == "me" or arg == "" then return Reply(player, Roster.Treat(player, 0)) end
         local h = FindByName(Roster.List(player), arg)
@@ -230,8 +288,9 @@ RegisterPlayerEvent(PLAYER_EVENT_ON_COMMAND, Log.Safe("ui command", function(eve
     local sub, arg = rest:match("^(%S*)%s*(.*)$")
     local fn = COMMANDS[(sub or ""):lower()]
     if not fn then
-        Reply(player, false, "Commands: .warband, .warband roster, .warband tavern, .warband memorial, .warband hire NAME, "
-            .. ".warband call NAME, .warband send NAME, .warband treat NAME|me, .warband abandon")
+        Reply(player, false, "Commands: .warband, .warband roster, .warband tavern, .warband armory, .warband memorial, "
+            .. ".warband hire NAME, .warband call NAME, .warband send NAME, .warband treat NAME|me, .warband equip ID NAME|me, "
+            .. ".warband equipall, .warband sell ID, .warband salvage ID, .warband selljunk, .warband abandon")
         return false
     end
     if not Company.IsCommander(player) then

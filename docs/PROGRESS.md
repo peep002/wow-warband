@@ -2,9 +2,35 @@
 
 ## Current phase
 
-**Phase 5: Death's door and permadeath** — built 2026-11-01, automated tests 117/117 (with the
-restart test), **waiting for the owner's in-game test** (`docs/TEST-QUEUE.md`, test 5). In-game
-tests 2-4 are also still queued.
+**Phase 6: Shared armory and currencies** — built 2026-11-01, automated tests 132/132 (with the
+restart test), **waiting for the owner's in-game test** (`docs/TEST-QUEUE.md`, test 6). With this,
+phases 1-6 are built: **Act I is playable** end to end (in-game tests 2-5 also still queued).
+
+- [x] Armory (`wb_armory.lua`, table `warband_armory`): every weapon and piece of armour the
+      commander or a hero loots (or wins in a roll) leaves their bags and goes to the armory, keeping
+      its random suffix ("of the Bear"); trade goods become materials; items nobody on the roster
+      could ever use are salvaged into materials; quest items, consumables, shirts and tabards stay put
+- [x] No coin from monsters: looted money is taken back (all gold comes from the campaign)
+- [x] Equipping in the hamlet: you and the heroes in your party; what was worn goes back to the
+      armory. Upgrade suggestions (item level x quality, lighter-than-best armour counts less) and
+      **Equip all upgrades**. Grey junk is never suggested.
+- [x] Selling (the only way items become gold: vendor price / 400) and salvaging (materials by
+      quality and item level); **Sell junk**
+- [x] A hero who dies for good leaves their green-or-better bag gear to the armory
+- [x] Mission rewards: gold and renown (Short 60/4, Medium 90/6, Long 120/9, gate 200/20);
+      abandoning pays a quarter of the gold, failing nothing
+- [x] New commanders get starter gear: six green armour pieces in their class's armour type and a
+      weapon (picked from the item database, level 6-10)
+- [x] Window: **Armory** tab (item list with quality colours, item level, slot, upgrade marks and
+      the real item tooltip; details with "Give to" buttons showing each person's gain, Sell, Salvage;
+      Equip all upgrades, Sell junk). Contracts show their gold and renown.
+- [x] Chat: `.warband armory`, `.warband equip ID NAME|me`, `.warband equipall`, `.warband sell ID`,
+      `.warband salvage ID`, `.warband selljunk`
+- [ ] Owner: in-game test (real looting and coin can't be tested by the bot)
+
+## Phase 5: Death's door and permadeath — built 2026-11-01
+
+Automated tests passed (117/117); the owner's in-game test (`docs/TEST-QUEUE.md`, test 5) is waiting.
 
 - [x] Death's door (`wb_death.lua`), first version as decided: on a mission, someone at 0 health is
       Downed; their body can be saved for 45 s by a resurrection spell, or by the fight ending
@@ -138,17 +164,18 @@ dungeon (in-game test passed 2026-11-01).
 
 - Death outside missions (e.g. in the hamlet) isn't special: release and resurrect the normal way.
 - Ironman (commander death ends the campaign) isn't built yet (difficulty tiers, phase 13).
-- A dead hero's bag items should go to the armory: comes with the armory (phase 6).
+- Real looting and coin pick-up go through hooks the test bot can't trigger (it can't open corpses);
+  the same capture code is tested with simulated loot. Needs the owner's in-game check.
+- The armory keeps an item's random suffix but not enchants or gems (dungeon drops rarely have them).
+- Upgrade suggestions only look at item level, quality and armour type, not which stats suit the
+  class (a warrior may be offered an intellect ring). You always confirm.
+- Embarking still needs only 1 hero (`Config.heroes.min_party`); the design says 4.
 - The wound aura's tooltip says "Wither Strike" (the spell it borrows); the window says "Wounded".
-- Monsters still drop coin (the closed economy's "no monster coin" comes with the economy, phase 6).
-- Starter gear for new commanders isn't given yet: they keep their level-1 clothes (phase 6, armory).
 - Heroes who sit out a mission get no XP yet (the Training Yard's bench XP is phase 11).
-- Heroes keep the gear they were set up with; it goes stale as they level (armory, phase 6).
 - Shadowfang Keep's Medium and Long runs need the courtyard door opened by talking to the
   prisoner after Rethilgore (Sorcerer Ashcrombe / Deathstalker Adamant); the Deadmines' gate needs
   the cannon used on the big door. The commander has to do those by hand; bots won't.
-- Company gold only changes by hiring (start 150, recruits cost 40 + 4 per level); missions pay
-  nothing yet (phase 6). Traits are rolled and shown but do nothing yet (phase 7).
+- Traits are rolled and shown but do nothing yet (phase 7).
 - The hero pool shrinks by every hero who dies or retires. 500 is plenty for now; re-running
   `sql/updates/002_hero_pool.sql` (server stopped) tops it up from playerbots' new characters.
 - Act I dungeons are tuned for levels 13-25 and a commander starts at 10, so the first missions are
@@ -178,6 +205,10 @@ dungeon (in-game test passed 2026-11-01).
 | 2026-11-01 | "The fight ending saves them" = nobody alive in the party in combat for 3 s (and down at least 3 s) | The design names the rule but not how to detect it; numbers in `Config.death` |
 | 2026-11-01 | A commander who bleeds out fails the mission (wakes up home, wounded); the commander isn't wounded by being downed and saved | The design only covers the wipe case for the commander |
 | 2026-11-01 | The commander's wound heals after the next mission that doesn't fail, or with treatment | A commander can't "sit out" a mission like a hero |
+| 2026-11-01 | **Materials are one number for now**, not real trade-good items; looted trade goods add 1 each | The design wants real trade goods by tier for crafting; that only matters once the blacksmith exists (phase 11/12), where we'll revisit it |
+| 2026-11-01 | Selling turns vendor price into company gold at 1/400 (a level-15 green ~15 gold) | Company gold is counted in whole "gold pieces" sized for mission rewards; real vendor prices would be tiny |
+| 2026-11-01 | Only the commander and heroes in the party (online) can be equipped | Offline characters can't be changed safely while the server runs |
+| 2026-11-01 | Commander starter gear comes from a database query, not playerbots' factory | The factory is written for bots and could crash the server on a real player |
 | 2026-11-01 | Wound = the client's "Wither Strike" aura (-10% max health) made permanent | A ready-made spell the client can show; a custom "Wounded" spell would need client patches |
 | 2026-11-01 | Raven Hill's own NPCs (Jitters, Bliztik, the invisible Unseen) are hidden | Jitters is Alliance and would attack Horde commanders; Bliztik is a vendor (closed economy) |
 | 2026-11-01 | Hub: Raven Hill, Duskwood | Design's proposal |

@@ -108,6 +108,7 @@ Stop worldserver with `server shutdown 1` at `AC>`; Ctrl+C stops authserver.
 | `sql/updates/002_hero_pool.sql` (server stopped) | auth + characters + playerbots | 2026-11-01 | none needed: characters stay valid; moved 500 to WBHEROES |
 | `sql/base/003_board_progress.sql` | warband_characters | 2026-11-01 | `DROP TABLE warband_board; ALTER TABLE warband_company DROP COLUMN progress` |
 | `sql/base/004_death.sql` | warband_characters | 2026-11-01 | `DROP TABLE warband_memorial`; drop column `wounded` from `warband_heroes` and `warband_company` |
+| `sql/base/005_armory.sql` | warband_characters | 2026-11-01 | `DROP TABLE warband_armory` (empties every armory) |
 | `sql/updates/003_tavern_npc.sql` | warband_world | 2026-11-01 | delete 9100001 from `creature`, `creature_template`, `creature_template_model`, `npc_text` |
 
 Apply with: `& "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" -u acore -pacore <database> -e "source sql/...sql"`

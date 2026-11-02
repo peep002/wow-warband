@@ -11,6 +11,11 @@
 --   .wbdev down NAME|me [hold]   kill them on the spot (hold: no fight-is-over rescue for them)
 --   .wbdev bleed NAME|me run out their bleed-out clock now
 --   .wbdev clear        kill every hostile monster within 100 yards
+--   .wbdev armory       the armory's items (id, entry, quality, count, suffix, upgrade for), gold,
+--                       renown, materials
+--   .wbdev lootsim ENTRY [NAME]  an item goes through the real loot capture (you or a hero)
+--   .wbdev giveitem NAME ENTRY   put an item in a hero's bags
+--   .wbdev worn NAME|me SLOT     what's worn in an equipment slot (entry, random property/suffix)
 --   .wbdev downed       who's downed in your party, with seconds left
 --   .wbdev tavern       every recruit: name, role, level, cost, founding?; free founding hires left
 --   .wbdev board [refresh|KEY,KEY]  the board's contracts (or deal new ones, or set them)
@@ -101,6 +106,51 @@ function probes.revive(player, arg)
         local u = GetPlayerByGUID(guid)
         if u then Out(player, string.format("later alive=%d hp=%d", u:IsAlive() and 1 or 0, u:GetHealth())) end
     end, 2000, 1)
+end
+
+-- The armory: id:entry:quality:count:prop:suffix:upgrade-for (names joined by +)
+function probes.armory(player)
+    local Armory = require("wb_armory")
+    local up, parts = Armory.Upgrades(player), {}
+    local list = Armory.List(player)
+    for _, it in ipairs(list) do
+        local who = {}
+        for _, u in ipairs(up[it.id] or {}) do who[#who + 1] = u.name end
+        parts[#parts + 1] = string.format("%d:%d:%d:%d:%d:%d:%s", it.id, it.entry, it.quality, it.count, it.prop, it.suffix,
+            #who > 0 and table.concat(who, "+") or "-")
+    end
+    local c = Company.Get(player)
+    Out(player, string.format("items=%d gold=%d renown=%d materials=%d list=%s", #list, c.gold, c.renown, c.materials,
+        #parts > 0 and table.concat(parts, ",") or "none"))
+end
+
+-- ".wbdev lootsim ENTRY [NAME]": the item appears in your (or a hero's) bags and goes through the
+-- same capture as a real loot. Reports whether it's still in the bags afterwards.
+function probes.lootsim(player, arg)
+    local entry, who = arg:match("^(%d+)%s*(%S*)$")
+    local unit = (who and who ~= "") and Who(player, who) or player
+    if not unit then return Out(player, "loot=nounit") end
+    local item = unit:AddItem(tonumber(entry), 1)
+    if not item then return Out(player, "loot=noitem") end
+    require("wb_armory").OnLoot(nil, unit, item, 1)
+    Out(player, string.format("loot=1 inbags=%d", unit:GetItemCount(tonumber(entry))))
+end
+
+-- ".wbdev giveitem NAME ENTRY": put an item in a hero's bags (it stays there).
+function probes.giveitem(player, arg)
+    local who, entry = arg:match("^(%S+)%s+(%d+)$")
+    local unit = who and Who(player, who)
+    local item = unit and unit:AddItem(tonumber(entry), 1)
+    Out(player, "given=" .. (item and 1 or 0))
+end
+
+-- ".wbdev worn NAME|me SLOT": what's worn there: entry, random property, random suffix.
+function probes.worn(player, arg)
+    local who, slot = arg:match("^(%S+)%s+(%d+)$")
+    local unit = who and Who(player, who)
+    local item = unit and unit:GetEquippedItemBySlot(tonumber(slot))
+    Out(player, item and string.format("worn=%d prop=%d suffix=%d", item:GetEntry(), item:GetRandomProperty(),
+        item:GetRandomSuffix()) or "worn=0")
 end
 
 -- Kill every hostile monster within 100 yards (a quiet spot for death tests).
@@ -232,9 +282,11 @@ function probes.killboss(player)
     Out(player, "killed=1")
 end
 
-function probes.log(player)
+-- ".wbdev log [EVENT]": the last 6 log lines (or the last 6 of one event, e.g. "hero_died").
+function probes.log(player, arg)
+    local only = (arg or ""):match("^([%w_]+)$")
     local q = CharDBQuery("SELECT `event`, `detail` FROM `warband_log` WHERE `company` = " .. player:GetGUIDLow()
-        .. " ORDER BY `id` DESC LIMIT 6")
+        .. (only and (" AND `event` = '" .. only .. "'") or "") .. " ORDER BY `id` DESC LIMIT 6")
     if not q then return Out(player, "log=none") end
     local lines = {}
     repeat lines[#lines + 1] = q:GetString(0) .. ":" .. q:GetString(1):gsub("%s", "_") until not q:NextRow()

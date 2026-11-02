@@ -11,6 +11,7 @@
 --   Company.IsCommander(player)
 --   Company.Save(player)         write the cached company back to the database
 --   Company.OnReady(fn)          fn(player, company) after a commander logs in (or is created)
+--   Company.OnCreated(fn)        fn(player, company) once, for a brand-new commander
 --
 -- Use from other files:  local Company = require("wb_company")
 
@@ -73,6 +74,11 @@ local function Ready(player)
     for _, fn in ipairs(readyHandlers) do fn(player, c) end
 end
 
+-- fn(player, company) once, right after a brand-new commander arrives in the hamlet (before the
+-- OnReady handlers), e.g. to hand out starter gear.
+local createdHandlers = {}
+function Company.OnCreated(fn) createdHandlers[#createdHandlers + 1] = fn end
+
 -- Making a commander ----------------------------------------------------------------------
 
 local function MakeCommander(player)
@@ -94,6 +100,8 @@ local function MakeCommander(player)
         p:Teleport(Config.hub.map, Config.hub.x, Config.hub.y, Config.hub.z, Config.hub.o)
         p:SendBroadcastMessage("|cffffd100[Warband]|r Welcome to " .. Config.hub.name
             .. ", Commander. Your company starts here. Talk to Sergeant Marlow, or type |cffffffff.warband|r, to see the contracts.")
+        local c = Company.Get(p)
+        if c then for _, fn in ipairs(createdHandlers) do fn(p, c) end end
         Ready(p)
     end, 1500, 1)
 end

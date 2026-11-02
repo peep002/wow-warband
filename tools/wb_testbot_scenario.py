@@ -24,6 +24,10 @@ Phase 5 adds (test 11): a downed hero saved by the fight ending is wounded; down
 wounded = dead for good (memorial wall); bleeding out = dead for good; a wipe fails the mission,
 loses the downed heroes and sends the commander home wounded; treating a wound costs gold; a
 wounded hero who sits out a mission heals.
+Phase 6 adds (tests 1, 3b, 6, 11): starter gear; loot goes to the armory (trade goods become
+materials, unusable items are salvaged); upgrades are suggested; equipping keeps random suffixes and
+puts the old item back; equip all; selling and salvaging; heroes are equipped; missions pay gold and
+renown; a fallen hero's bag gear goes to the armory.
 """
 import os
 import subprocess
@@ -37,6 +41,11 @@ MARLOW, MAUDE = 9100000, 9100001
 RHAHKZOR_SPAWN = 79168          # Rhahk'Zor's spawn guid in the Deadmines (world DB creature table)
 VANCLEEF_SPAWN = 79336          # Edwin VanCleef's spawn guid
 DEFIAS_MINER = 598              # a monster near the Deadmines entrance
+# Test items (world DB item_template): two rings (an empty slot: always an upgrade), cloth pants with
+# a random suffix, a death-knight-only medallion (nobody on the roster can use it), linen cloth (a
+# trade good), a grey wand (junk), and a cape anyone can wear.
+RING_A, RING_B, PANTS_RANDOM, DK_ONLY, LINEN, GREY_WAND, CAPE, CAPE2 = 8350, 20906, 6267, 38588, 2589, 5560, 1355, 2284
+STARTER_SLOTS = (4, 5, 6, 7, 8, 9, 15)   # chest, waist, legs, feet, wrists, hands, main hand
 FROST_NOVA = 122                # a Mage spell trained at level 10
 LAUNCHER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server-launcher", "ServerLauncher.exe")
 SERVER_LOG = r"C:\Claude\Projects\azerothcore-warband\build\bin\Release\Server.log"
@@ -86,6 +95,22 @@ def tavern(bot):
         if len(f) == 5:
             recruits.append(dict(name=f[0], role=f[1], level=int(f[2]), cost=int(f[3]), founding=f[4] == "1"))
     return recruits, s
+
+
+def armory(bot):
+    """(items list of dicts, raw read-out)"""
+    s = bot.probe("armory")
+    items = []
+    for part in s.get("list", "none").split(","):
+        f = part.split(":")
+        if len(f) == 7:
+            items.append(dict(id=int(f[0]), entry=int(f[1]), quality=int(f[2]), count=int(f[3]), prop=int(f[4]),
+                              suffix=int(f[5]), upgrade_for=[] if f[6] == "-" else f[6].split("+")))
+    return items, s
+
+
+def worn(bot, who, slot):
+    return bot.probe("worn %s %d" % (who, slot))
 
 
 def at_home(s):
@@ -159,6 +184,12 @@ def kill_boss(bot, spawn=RHAHKZOR_SPAWN):
 def main(bot, r, only=None):
     restart = "restart" in sys.argv
     bot.connect()
+    old = [c for c in bot.characters() if c["name"].startswith("Wb")]
+    if old:  # run the newest scripts before the new commander is created (starter gear etc.)
+        bot.enter_world(old[0])
+        bot.cmd(".reload ale", r"[Rr]eload", 10)
+        time.sleep(2)
+        bot.logout()
     gone = bot.delete_old_characters()
     print(f"Deleted {gone} old test characters.")
     char = bot.create_character(T.CLASS_MAGE, "Wb")
@@ -183,6 +214,8 @@ def main(bot, r, only=None):
     r.check("1: class spells learned on level-up (Frost Nova)", sp.get("known") == "1")
     log = bot.probe("log")
     r.check("1: company creation is logged", "company_created" in " ".join(log.values()))
+    on = [slot for slot in STARTER_SLOTS if num(worn(bot, "me", slot), "worn") > 0]
+    r.check("1: a new commander gets starter gear (6 armour pieces and a weapon)", len(on) >= 6, f"slots worn: {on}")
     b = bot.probe("board")
     offers = [k for k in b.get("board", "").split(",") if k]
     r.check("1: the board offers Act I contracts a level-10 commander is ready for",
@@ -262,6 +295,66 @@ def main(bot, r, only=None):
     s = wait_state(bot, lambda s: num(s, "bots") == 1 and s.get("botmaps") == "0", timeout=25)
     r.check("3: a hero logged out by other means can be called back", num(s, "bots") == 1, f"bots={s.get('bots')}")
 
+    # 3b. Armory -------------------------------------------------------------------------------------
+    print("Test 3b: armory")
+    me = state(bot)
+    commander_name = None
+    _, a0 = armory(bot)
+    mats0, gold0 = num(a0, "materials"), num(a0, "gold")
+    l = bot.probe("lootsim %d" % LINEN)
+    _, a1 = armory(bot)
+    r.check("3b: a looted trade good becomes materials", num(a1, "materials") == mats0 + 1 and num(l, "inbags") == 0,
+            f"materials {mats0} -> {a1.get('materials')}, in bags {l.get('inbags')}")
+    l = bot.probe("lootsim %d" % DK_ONLY)
+    items, a2 = armory(bot)
+    r.check("3b: an item nobody on the roster can use is salvaged", num(a2, "materials") > num(a1, "materials")
+            and num(a2, "items") == 0 and num(l, "inbags") == 0, str(a2))
+    for entry in (RING_A, PANTS_RANDOM, GREY_WAND):
+        l = bot.probe("lootsim %d" % entry)
+    items, raw = armory(bot)
+    by_entry = {it["entry"]: it for it in items}
+    r.check("3b: looted gear goes to the armory, out of the bags", set(by_entry) >= {RING_A, PANTS_RANDOM, GREY_WAND}
+            and num(l, "inbags") == 0, raw.get("list"))
+    pants = by_entry.get(PANTS_RANDOM)
+    r.check("3b: the armory keeps an item's random suffix", pants is not None and (pants["prop"] > 0 or pants["suffix"] > 0),
+            str(pants))
+    ring = by_entry.get(RING_A)
+    r.check("3b: an item for an empty slot is suggested as an upgrade", ring is not None and len(ring["upgrade_for"]) >= 1,
+            str(ring))
+    if pants:
+        bot.cmd(".warband equip %d me" % pants["id"])
+        time.sleep(1)
+        w = worn(bot, "me", 6)
+        r.check("3b: equipping puts the item on, with the same suffix", num(w, "worn") == PANTS_RANDOM
+                and num(w, "prop") == pants["prop"] and num(w, "suffix") == pants["suffix"], str(w))
+        items, raw = armory(bot)
+        r.check("3b: what was worn goes back to the armory", any(it["entry"] not in (RING_A, GREY_WAND) for it in items),
+                raw.get("list"))
+    bot.probe("lootsim %d" % RING_B)
+    since = bot.mark()
+    bot.cmd(".warband equipall")
+    r.check("3b: equip all upgrades", bot.wait_chat(r"upgrades? equipped", 5, since) is not None)
+    r.check("3b: the rings are worn", num(worn(bot, "me", 10), "worn") in (RING_A, RING_B)
+            or num(worn(bot, names[0], 10), "worn") in (RING_A, RING_B), "")
+    gold1 = num(armory(bot)[1], "gold")
+    bot.cmd(".warband selljunk")
+    time.sleep(1)
+    items, raw = armory(bot)
+    r.check("3b: selling junk gives gold", num(raw, "gold") > gold1 and all(it["quality"] > 0 for it in items),
+            f"gold {gold1} -> {raw.get('gold')}")
+    if items:
+        m1 = num(raw, "materials")
+        bot.cmd(".warband salvage %d" % items[0]["id"])
+        time.sleep(1)
+        r.check("3b: salvaging gives materials", num(armory(bot)[1], "materials") > m1)
+    bot.probe("lootsim %d" % CAPE)
+    cape = next((it for it in armory(bot)[0] if it["entry"] == CAPE), None)
+    if cape:
+        bot.cmd(".warband equip %d %s" % (cape["id"], names[0]))
+        time.sleep(1)
+        r.check("3b: a hero in the party can be equipped", num(worn(bot, names[0], 14), "worn") == CAPE,
+                str(worn(bot, names[0], 14)))
+
     # 4. Board and embark ------------------------------------------------------------------------
     print("Test 4: mission board and embark")
     if embark(bot, r, "4"):
@@ -305,6 +398,8 @@ def main(bot, r, only=None):
                 and heroes[names[2]]["missions"] == 0, raw.get("list"))
         s = state(bot)
         r.check("6: the commander gains about 1.5 levels (level 11)", num(s, "level") == 11, f"level={s.get('level')}")
+        log = " ".join(bot.probe("log").values())
+        r.check("6: a completed Short mission pays 60 gold and 4 renown", "reward:done_gold=60_renown=4" in log, log)
         h0 = heroes[names[0]]
         r.check("6: the hero who went gains about 1.5 levels (level 11)", h0["level"] == 11, f"level={h0['level']}")
         r.check("6: the hero spent the new talent points", h0["talents"] == 0, f"unspent={h0['talents']}")
@@ -391,9 +486,13 @@ def main(bot, r, only=None):
                 raw.get("list"))
         r.check("11: a saved hero is wounded", heroes[a]["wounded"], raw.get("list"))
 
+        bot.probe("giveitem %s %d" % (a, CAPE2))
+        before = sum(1 for it in armory(bot)[0] if it["entry"] == CAPE2)
         since = bot.mark()
         bot.probe("down " + a)
         r.check("11: downed again while wounded = dies for good", bot.wait_chat(a + " has fallen", 6, since) is not None)
+        after = sum(1 for it in armory(bot)[0] if it["entry"] == CAPE2)
+        r.check("11: a fallen hero's bag gear goes to the armory", after == before + 1, f"{before} -> {after}")
         heroes, raw = roster(bot)
         r.check("11: the fallen hero is off the roster's living", heroes[a]["status"] == "dead" and not heroes[a]["party"],
                 raw.get("list"))
@@ -407,7 +506,7 @@ def main(bot, r, only=None):
         bot.cmd(".warband memorial")
         r.check("11: both are on the memorial wall", bot.wait_chat("Bled out", 5, since) is not None
                 and bot.wait_chat("still wounded", 1, since) is not None)
-        log = " ".join(bot.probe("log").values())
+        log = " ".join(bot.probe("log hero_died").values())
         r.check("11: deaths are logged", log.count("hero_died") >= 2, log)
         time.sleep(9)
         heroes, raw = roster(bot)

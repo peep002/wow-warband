@@ -14,7 +14,7 @@
 --   Missions.SendHome(player)     teleport the commander and their bots to the hamlet
 --   Missions.PartyBots(player)    the bots in the commander's group
 --   Missions.OnChange(fn)         fn(player) whenever the board or the mission state changes
---   Missions.OnFinish(fn)         fn(player, status) after a mission ends ("done", "abandoned", "failed")
+--   Missions.OnFinish(fn)         fn(player, status, def) after a mission ends ("done", "abandoned", "failed")
 --   Missions.Fail(player)         the mission is lost (wipe, or the commander bled out): home, little XP
 --   Missions.ActiveCommanders()   guids of commanders out on a mission right now
 --
@@ -133,7 +133,7 @@ local function Finish(player, status)
     Log.Event(guid, "mission_" .. status, m.key)
     Board.Refresh(player)
     Missions.SendHome(player)
-    for _, fn in ipairs(finishHandlers) do fn(player, status) end
+    for _, fn in ipairs(finishHandlers) do fn(player, status, m.def) end
     Changed(player)
 end
 

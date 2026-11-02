@@ -40,6 +40,9 @@ local changeHandlers = {}
 
 function Roster.OnChange(fn) changeHandlers[#changeHandlers + 1] = fn end
 local function Changed(player) for _, fn in ipairs(changeHandlers) do fn(player) end end
+local killedHandlers = {}
+-- fn(commander, bot) when a hero dies for good, while the bot is still online (e.g. empty its bags)
+function Roster.OnKilled(fn) killedHandlers[#killedHandlers + 1] = fn end
 
 local heroAccount
 function Roster.HeroAccount()
@@ -286,6 +289,7 @@ function Roster.Kill(player, guid, cause, missionKey)
     if not h or h.status ~= "alive" then return end
     local bot = GetPlayerByGUID(GetPlayerGUID(guid))
     local level = bot and bot:GetLevel() or h.level
+    if bot then for _, fn in ipairs(killedHandlers) do fn(player, bot) end end
     h.status, h.in_party, h.wounded = "dead", false, false
     Save(h, { "status", "in_party", "wounded" })
     CharDBQuery(string.format(

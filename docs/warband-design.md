@@ -391,7 +391,9 @@ per return. That scarcity is what forces rotation, tough calls and a deep bench.
 | Relics | Champion chests, altars, gate bosses, rare drops | Equipped in trinket slots |
 
 Materials are real WoW trade goods by tier (copper and linen in Act I up to saronite and
-frostweave in Act VII), so no custom material items are needed.
+frostweave in Act VII), so no custom material items are needed. *(For now, phase 6: materials are a
+single number on the company; looted trade goods and salvaged gear add to it. Real trade goods by
+tier come back to the table with the blacksmith.)*
 
 ### Where gear comes from
 

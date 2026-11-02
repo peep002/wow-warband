@@ -129,3 +129,29 @@ Heroes can now die for good. Use a company you don't mind losing heroes from.
 Tell me if dying feels fair, and whether 45 seconds and the "fight is over" rescue feel right.
 
 **Result:** (waiting)
+
+## Test 6: the armory and gold (phase 6) — Act I playable
+
+The bot can't open corpses, so real looting is only tested here. Start with a **new character**.
+
+1. Look at your commander right away.
+   - **Expect:** green starter gear: chest, legs, feet, hands, waist, wrists in your class's armour,
+     and a weapon (instead of the level-1 clothes).
+2. Embark with heroes and fight. Loot a monster's corpse.
+   - **Expect:** coins vanish straight away (no monster gold in Warband). A looted weapon or piece of
+     armour shows "[Warband] ... goes to the armory" and isn't in your bags; cloth or ore shows
+     "becomes materials". Your heroes loot too: same messages.
+3. Finish the mission.
+   - **Expect:** "The company earns 60 gold and 4 renown" (for a Short contract); the window's top
+     line shows the new totals.
+4. Open the **Armory** tab.
+   - **Expect:** the looted items with quality colours, item level and slot; hovering one shows WoW's
+     own tooltip (with its "of the ..." suffix). Items that would help someone are marked "Upgrade".
+5. Click an item: the right side lists you and your party heroes with how much better it would be
+   (or "not an upgrade"). Click a name: they wear it, and what they wore comes back to the armory.
+6. Try **Equip all upgrades**, **Sell junk**, **Sell** and **Salvage** on an item.
+7. Let a hero die for good while carrying a green item in their bags (rare): it lands in the armory.
+
+Tell me if the Armory tab is clear, and whether gold feels too tight or too loose after a few missions.
+
+**Result:** (waiting)

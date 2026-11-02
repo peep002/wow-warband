@@ -4,7 +4,7 @@
 -- addon. It only draws what the server sends (wb_ui.lua) and sends clicks back.
 -- Style: classic WoW panels (dialog frame, header plate, bottom tabs), 3.3.5a addon API only.
 --   * A minimap button opens and closes it.
---   * Tabs: Missions, Roster, Tavern, Memorial; Armory and Hamlet are shown greyed out for later phases.
+--   * Tabs: Missions, Roster, Tavern, Armory, Memorial; Hamlet is shown greyed out for a later phase.
 
 local AIO = AIO or require("AIO")
 if AIO.AddAddon() then return end
@@ -22,12 +22,17 @@ local TABS = {
     { key = "missions", name = "Missions" },
     { key = "roster",   name = "Roster" },
     { key = "tavern",   name = "Tavern" },
+    { key = "armory",   name = "Armory" },
     { key = "memorial", name = "Memorial" },
-    { key = "armory",   name = "Armory", later = "The shared armory opens in phase 6." },
     { key = "hamlet",   name = "Hamlet", later = "Hamlet buildings open in phase 11." },
 }
 
-local frame, data, selected
+local SLOT_NAMES = { [1] = "Head", [2] = "Neck", [3] = "Shoulders", [4] = "Shirt", [5] = "Chest", [20] = "Chest",
+    [6] = "Waist", [7] = "Legs", [8] = "Feet", [9] = "Wrists", [10] = "Hands", [11] = "Finger", [12] = "Trinket",
+    [16] = "Back", [13] = "One-hand", [17] = "Two-hand", [21] = "Main hand", [22] = "Off hand", [14] = "Shield",
+    [23] = "Held in off hand", [15] = "Ranged", [25] = "Thrown", [26] = "Ranged", [28] = "Relic", [19] = "Tabard" }
+
+local frame, data, selected, selectedItem
 
 -- Small helpers ----------------------------------------------------------------------------------
 
@@ -210,6 +215,77 @@ local function MakeFrame()
     r.treatSelf:SetSize(150, 20)
     r.treatSelf:SetPoint("TOP", 40, 3)
     r.treatSelf:SetScript("OnClick", function() AIO.Handle("Warband", "Treat", 0) end)
+
+    -- Armory page ------------------------------------------------------------------------------
+    local ap = CreateFrame("Frame", nil, body)
+    ap:SetAllPoints()
+    f.pages.armory = ap
+    ap.header = Text(ap, "GameFontNormal")
+    ap.header:SetPoint("TOPLEFT", 4, 0)
+    ap.equipAll = CreateFrame("Button", nil, ap, "UIPanelButtonTemplate")
+    ap.equipAll:SetSize(170, 20)
+    ap.equipAll:SetPoint("TOPRIGHT", -126, 3)
+    ap.equipAll:SetScript("OnClick", function() AIO.Handle("Warband", "EquipAll") end)
+    ap.sellJunk = CreateFrame("Button", nil, ap, "UIPanelButtonTemplate")
+    ap.sellJunk:SetSize(120, 20)
+    ap.sellJunk:SetPoint("TOPRIGHT", 0, 3)
+    ap.sellJunk:SetScript("OnClick", function() AIO.Handle("Warband", "SellJunk") end)
+    local box = Inset(ap)
+    box:SetPoint("TOPLEFT", 0, -20)
+    box:SetPoint("BOTTOMLEFT", 0, 0)
+    box:SetWidth(LIST_W + 40)
+    ap.scroll = CreateFrame("ScrollFrame", "WarbandArmoryScroll", box, "UIPanelScrollFrameTemplate")
+    ap.scroll:SetPoint("TOPLEFT", 6, -6)
+    ap.scroll:SetPoint("BOTTOMRIGHT", -28, 6)
+    ap.content = CreateFrame("Frame", nil, ap.scroll)
+    ap.content:SetSize(LIST_W, 10)
+    ap.scroll:SetScrollChild(ap.content)
+    ap.empty = Text(box, "GameFontDisable")
+    ap.empty:SetPoint("CENTER")
+    ap.empty:SetJustifyH("CENTER")
+    ap.empty:SetText("The armory is empty.\nEverything your warband loots ends up here.")
+    ap.rows = {}
+    local ad = Inset(ap)
+    ad:SetPoint("TOPLEFT", box, "TOPRIGHT", 8, 0)
+    ad:SetPoint("BOTTOMRIGHT", 0, 0)
+    ap.detail = ad
+    ad.icon = CreateFrame("Button", nil, ad)
+    ad.icon:SetSize(40, 40)
+    ad.icon:SetPoint("TOPLEFT", 14, -14)
+    ad.icon.tex = ad.icon:CreateTexture(nil, "ARTWORK")
+    ad.icon.tex:SetAllPoints()
+    ad.icon:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    ad.name = Text(ad, "GameFontNormalLarge")
+    ad.name:SetPoint("TOPLEFT", ad.icon, "TOPRIGHT", 10, -2)
+    ad.name:SetWidth(W - 36 - LIST_W - 40 - 8 - 80)
+    ad.facts = Text(ad, "GameFontHighlightSmall", 0.8, 0.8, 0.8)
+    ad.facts:SetPoint("TOPLEFT", ad.name, "BOTTOMLEFT", 0, -4)
+    ad.hint = Text(ad, "GameFontDisableSmall")
+    ad.hint:SetPoint("TOPLEFT", ad.icon, "BOTTOMLEFT", 0, -8)
+    ad.hint:SetText("Hover the icon for the item's full tooltip.")
+    ad.giveLabel = Text(ad, "GameFontNormal")
+    ad.giveLabel:SetPoint("TOPLEFT", ad.hint, "BOTTOMLEFT", 0, -12)
+    ad.giveLabel:SetText("Give to")
+    ad.give = {}
+    for i = 1, 5 do
+        local b = CreateFrame("Button", nil, ad, "UIPanelButtonTemplate")
+        b:SetSize(W - 36 - LIST_W - 40 - 8 - 30, 22)
+        b:SetPoint("TOPLEFT", ad.giveLabel, "BOTTOMLEFT", 0, -4 - (i - 1) * 25)
+        ad.give[i] = b
+    end
+    ad.none = Text(ad, "GameFontDisableSmall")
+    ad.none:SetPoint("TOPLEFT", ad.giveLabel, "BOTTOMLEFT", 0, -6)
+    ad.none:SetWidth(W - 36 - LIST_W - 40 - 8 - 30)
+    ad.none:SetText("Only you and the heroes in your party can be equipped, in the hamlet. Call heroes from the Roster tab.")
+    ad.sell = CreateFrame("Button", nil, ad, "UIPanelButtonTemplate")
+    ad.sell:SetSize(130, 22)
+    ad.sell:SetPoint("BOTTOMLEFT", 12, 12)
+    ad.salvage = CreateFrame("Button", nil, ad, "UIPanelButtonTemplate")
+    ad.salvage:SetSize(160, 22)
+    ad.salvage:SetPoint("LEFT", ad.sell, "RIGHT", 8, 0)
+    ad.empty = Text(ad, "GameFontDisable")
+    ad.empty:SetPoint("CENTER")
+    ad.empty:SetText("Pick an item on the left.")
 
     -- Placeholder page for tabs that open in later phases.
     f.pages.later = CreateFrame("Frame", nil, body)
@@ -485,6 +561,127 @@ local function DrawTavern()
     Place(page, #data.recruits, "Nobody is waiting at the tavern.\nNew recruits arrive after each mission.")
 end
 
+-- Armory page --------------------------------------------------------------------------------------
+
+local function ItemLink(it)
+    -- item:id:enchant:gem1:gem2:gem3:gem4:random:unique:level (random < 0 = a random suffix)
+    local random = it.prop > 0 and it.prop or (it.suffix > 0 and -it.suffix or 0)
+    return string.format("item:%d:0:0:0:0:0:%d:0:0", it.entry, random)
+end
+
+local function QualityColor(q)
+    local _, _, _, hex = GetItemQualityColor(q or 1)
+    return hex or "|cffffffff"
+end
+
+local function ItemIcon(entry)
+    return (GetItemIcon and GetItemIcon(entry)) or select(10, GetItemInfo(entry)) or QUESTION
+end
+
+local function ShowItemTooltip(owner, it)
+    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+    GameTooltip:SetHyperlink(ItemLink(it))
+    GameTooltip:Show()
+end
+
+local function ArmoryRow(i)
+    local ap = frame.pages.armory
+    local r = ap.rows[i]
+    if r then return r end
+    r = CreateFrame("Button", nil, ap.content)
+    r:SetSize(LIST_W, 36)
+    r:SetPoint("TOPLEFT", 0, -(i - 1) * 38)
+    r.icon = r:CreateTexture(nil, "ARTWORK")
+    r.icon:SetSize(30, 30)
+    r.icon:SetPoint("LEFT", 2, 0)
+    r.name = Text(r, "GameFontNormalSmall")
+    r.name:SetPoint("TOPLEFT", r.icon, "TOPRIGHT", 6, -1)
+    r.name:SetWidth(LIST_W - 44)
+    r.sub = Text(r, "GameFontHighlightSmall", 0.7, 0.7, 0.7)
+    r.sub:SetPoint("BOTTOMLEFT", r.icon, "BOTTOMRIGHT", 6, 1)
+    r.sel = r:CreateTexture(nil, "BACKGROUND")
+    r.sel:SetTexture("Interface\\QuestFrame\\UI-QuestLogTitleHighlight")
+    r.sel:SetBlendMode("ADD")
+    r.sel:SetAllPoints()
+    r.sel:SetVertexColor(1, 0.82, 0, 0.6)
+    r:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+    r:SetScript("OnClick", function(self)
+        selectedItem = self.id
+        Handlers.Draw()
+    end)
+    r:SetScript("OnEnter", function(self) if self.item then ShowItemTooltip(self, self.item) end end)
+    r:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    ap.rows[i] = r
+    return r
+end
+
+local function DrawArmory()
+    local ap = frame.pages.armory
+    local upgrades, junk = 0, 0
+    for _, it in ipairs(data.armory) do
+        if #it.upgrades > 0 then upgrades = upgrades + 1 end
+        if it.quality == 0 then junk = junk + 1 end
+    end
+    ap.header:SetText(string.format("Armory: %d item%s   |cffa0a0a0-|r   %d materials", #data.armory,
+        #data.armory == 1 and "" or "s", data.materials))
+    ap.equipAll:SetText(string.format("Equip all upgrades (%d)", upgrades))
+    if upgrades > 0 and not data.onMission then ap.equipAll:Enable() else ap.equipAll:Disable() end
+    ap.sellJunk:SetText(string.format("Sell junk (%d)", junk))
+    if junk > 0 then ap.sellJunk:Enable() else ap.sellJunk:Disable() end
+
+    local current
+    for i, it in ipairs(data.armory) do
+        local r = ArmoryRow(i)
+        r.id, r.item = it.id, it
+        r.icon:SetTexture(ItemIcon(it.entry))
+        r.name:SetText(QualityColor(it.quality) .. it.name .. "|r" .. (it.count > 1 and (" x" .. it.count) or ""))
+        r.sub:SetText(string.format("Item level %d  -  %s%s", it.ilvl, SLOT_NAMES[it.invtype] or "",
+            #it.upgrades > 0 and "  |cff33ff33Upgrade|r" or ""))
+        Shown(r.sel, it.id == selectedItem)
+        r:Show()
+        if it.id == selectedItem then current = it end
+    end
+    for i = #data.armory + 1, #ap.rows do ap.rows[i]:Hide() end
+    ap.content:SetHeight(math.max(10, #data.armory * 38))
+    Shown(ap.empty, #data.armory == 0)
+
+    local ad = ap.detail
+    Shown(ad.empty, current == nil)
+    for _, w in ipairs({ ad.icon, ad.name, ad.facts, ad.hint, ad.giveLabel, ad.sell, ad.salvage }) do Shown(w, current ~= nil) end
+    for _, b in ipairs(ad.give) do b:Hide() end
+    ad.none:Hide()
+    if not current then return end
+    local it = current
+    ad.icon.tex:SetTexture(ItemIcon(it.entry))
+    ad.icon:SetScript("OnEnter", function(self) ShowItemTooltip(self, it) end)
+    ad.name:SetText(QualityColor(it.quality) .. it.name .. "|r")
+    ad.facts:SetText(string.format("%s   |   Item level %d   |   Requires level %d", SLOT_NAMES[it.invtype] or "?",
+        it.ilvl, it.reqlevel))
+    local gains = {}
+    for _, u in ipairs(it.upgrades) do gains[u.guid] = u.gain end
+    for i, t in ipairs(data.targets) do
+        local b = ad.give[i]
+        if b then
+            local gain = gains[t.guid]
+            b:SetText(ClassName(t.class, t.name) .. string.format(" (%d)", t.level)
+                .. (gain and string.format("  |cff33ff33+%d%%|r", math.floor(gain * 100 + 0.5)) or "  |cffa0a0a0not an upgrade|r"))
+            local guid, id = t.guid, it.id
+            b:SetScript("OnClick", function() AIO.Handle("Warband", "Equip", id, guid) end)
+            if data.onMission then b:Disable() else b:Enable() end
+            b:Show()
+        end
+    end
+    Shown(ad.none, #data.targets <= 1)
+    if #data.targets <= 1 then
+        ad.none:ClearAllPoints()
+        ad.none:SetPoint("TOPLEFT", ad.give[1], "BOTTOMLEFT", 0, -6)
+    end
+    ad.sell:SetText(string.format("Sell (%d gold)", it.sell * it.count))
+    ad.sell:SetScript("OnClick", function() AIO.Handle("Warband", "Sell", it.id) end)
+    ad.salvage:SetText(string.format("Salvage (+%d materials)", it.salvage * it.count))
+    ad.salvage:SetScript("OnClick", function() AIO.Handle("Warband", "Salvage", it.id) end)
+end
+
 local function DrawMemorial()
     local page = frame.pages.memorial
     page.header:SetText("The memorial wall")
@@ -532,6 +729,9 @@ function Handlers.Draw()
     elseif tab.key == "memorial" then
         frame.pages.memorial:Show()
         DrawMemorial()
+    elseif tab.key == "armory" then
+        frame.pages.armory:Show()
+        DrawArmory()
     end
 end
 
