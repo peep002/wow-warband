@@ -1,5 +1,8 @@
 # Playtest session: Act I (phases 2-6 in one sitting)
 
+Second round (after the first playtest's fixes): focus on what the first one didn't reach:
+wounds and the memorial (12, 19, 20), the armory (14), abandon (16) and relog (17).
+
 The same checks as `docs/TEST-QUEUE.md` tests 2-6, in playing order. About an hour. Note anything
 odd as you go (a screenshot of the window helps most); the numbers in brackets are the test-queue
 steps, so results can be recorded there.
@@ -25,8 +28,9 @@ steps, so results can be recorded there.
    window on its tab. [2.4, 3.6]
 
 ## A mission
-10. **Missions** tab: the act line ("main missions 0 of 4..."), up to 3 contracts, each listing its
-    gold, renown and XP. **Embark** on one. [4.1, 2.7]
+10. **Missions** tab: the act line ("main missions 0 of 4..."), **3 different contracts** (dungeons and
+    lengths), each with its **route** (how far into the dungeon it goes), gold, renown and XP; the
+    text stays inside the window. **Embark** on one. [4.1, 2.7]
 11. Fight to the target boss. Loot corpses: **coins vanish**, gear says "goes to the armory", cloth
     says "becomes materials". Kills give very little XP. [6.2, 4.2]
 12. If a hero dies: "is down! 45 seconds..."; when the fight ends they stand up **wounded**. [5.1, 5.2]
@@ -34,10 +38,12 @@ steps, so results can be recorded there.
     home after 10 seconds. [4.2, 6.3, 2.8]
 
 ## Back home
-14. **Armory** tab: your loot, with WoW tooltips and "Upgrade" marks. Click an item and give it to
+14. **Armory** tab: your loot, with WoW tooltips (no "Retrieving item information" after a moment)
+    and "Upgrade" marks. Click an item and give it to
     someone; try **Equip all upgrades**, **Sell junk**, **Sell**, **Salvage**. [6.4-6.6]
-15. **Roster**: wounded heroes have a **Treat** button; missions counted. **Tavern**: 4 new recruits
-    for gold. Board: new contracts. [5.5, 4.3, 3.7]
+15. **Roster**: wounded heroes have a **Treat** button; missions counted. **Tavern**: 4 new recruits:
+    2 **free** ones a little below your heroes' level, and 2 **veterans** at your level (blue gear, two
+    good traits) for gold. Board: new contracts. [5.5, 4.3, 3.7]
 16. Embark again and click **Abandon mission** in the window: home, a quarter of the gold. [2.9]
 17. Log out and back in: your party heroes come back by themselves. [3.8]
 

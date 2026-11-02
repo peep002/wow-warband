@@ -37,11 +37,16 @@ Config.heroes = {
 
 -- Tavern -------------------------------------------------------------------------------------
 Config.tavern = {
-    size        = { [0] = 4, 5, 6, 7 }, -- recruits shown after each mission, by tavern level
-    level_gap   = 4,      -- recruits arrive this many levels below the roster's average level
+    -- After each mission a new batch: free recruits a few levels below the roster (so a company that
+    -- lost heroes is never stuck), and paid veterans at the roster's level with better gear and a
+    -- second good trait. Sizes by tavern level (upgrades come with the hamlet, phase 11).
+    size        = { [0] = 4, 5, 6, 7 }, -- recruits per batch
+    veterans    = { [0] = 2, 2, 3, 3 }, -- of which this many are paid veterans; the rest are free
+    level_gap   = 4,      -- free recruits arrive this many levels below the roster's average level
     min_level   = 10,
-    cost_base   = 40,     -- hire cost in gold: cost_base + cost_per_level * level
+    cost_base   = 40,     -- a veteran's hire cost in gold: cost_base + cost_per_level * level
     cost_per_level = 4,
+    veteran_gear = 3,     -- veterans' starting gear quality (3 = blue); others get Config.heroes.gear_quality
     founding_offers = 6,  -- a new company's first tavern: this many recruits...
     founding_free   = 4,  -- ...of which this many can be hired for free
     founding_roles  = { "tank", "healer", "dps", "dps" }, -- guaranteed among the founding offers
@@ -227,6 +232,14 @@ Config.infirmary = {
 -- (commander included) is at least this.
 Config.board = {
     offers = 3,
+    level_stretch = 1,   -- contracts are offered from this many levels below their min_level
+}
+
+-- What each length means, shown on the contract (%s = the target boss).
+Config.lengths = {
+    Short  = "Route: the start of the dungeon, up to %s. The contract ends when the target dies; you don't have to clear anything else.",
+    Medium = "Route: about half the dungeon, up to %s. The contract ends when the target dies.",
+    Long   = "Route: the whole dungeon, all the way to %s at the end.",
 }
 
 Config.dungeons = {
@@ -238,8 +251,8 @@ Config.dungeons = {
             .. "Someone is paying well to see them gone.",
         missions = {
             Short  = { name = "Smoke in the Chasm", boss = 11517, boss_name = "Oggleflint", min_level = 10 },
-            Medium = { name = "The Hungerer", boss = 11520, boss_name = "Taragaman the Hungerer", min_level = 11 },
-            Long   = { name = "Burning Blades", boss = 11519, boss_name = "Bazzalan", min_level = 12 },
+            Medium = { name = "The Hungerer", boss = 11520, boss_name = "Taragaman the Hungerer", min_level = 10 },
+            Long   = { name = "Burning Blades", boss = 11519, boss_name = "Bazzalan", min_level = 11 },
         },
     },
     wailing = {
@@ -249,9 +262,9 @@ Config.dungeons = {
         text = "The druids of the Fang have twisted the caverns' dream into a nightmare. "
             .. "Their lords are dangerous, and the deviate beasts worse.",
         missions = {
-            Short  = { name = "Fangs in the Dark", boss = 3671, boss_name = "Lady Anacondra", min_level = 12 },
-            Medium = { name = "Lord of the Fang", boss = 3670, boss_name = "Lord Pythas", min_level = 13 },
-            Long   = { name = "The Everliving", boss = 5775, boss_name = "Verdan the Everliving", min_level = 14 },
+            Short  = { name = "Fangs in the Dark", boss = 3671, boss_name = "Lady Anacondra", min_level = 11 },
+            Medium = { name = "Lord of the Fang", boss = 3670, boss_name = "Lord Pythas", min_level = 12 },
+            Long   = { name = "The Everliving", boss = 5775, boss_name = "Verdan the Everliving", min_level = 13 },
         },
     },
     deadmines = {
@@ -261,7 +274,7 @@ Config.dungeons = {
         text = "The Defias Brotherhood is digging under Moonbrook, building something big in the dark.",
         missions = {
             Short  = { key = "deadmines_short", name = "Into the Deadmines", boss = 644, boss_name = "Rhahk'Zor", min_level = 10 },
-            Medium = { name = "The Goblin Foundry", boss = 1763, boss_name = "Gilnid", min_level = 13 },
+            Medium = { name = "The Goblin Foundry", boss = 1763, boss_name = "Gilnid", min_level = 12 },
             -- The Long run is the act's gate (below).
         },
     },
@@ -271,9 +284,9 @@ Config.dungeons = {
         icon = "Interface\\Icons\\Ability_Mount_WhiteDireWolf",
         text = "Archmage Arugal's worgen hold the old keep above Pyrewood. Nobody who goes in at night comes out.",
         missions = {
-            Short  = { name = "Gates of Shadowfang", boss = 3914, boss_name = "Rethilgore", min_level = 14 },
-            Medium = { name = "The Baron's Hall", boss = 3887, boss_name = "Baron Silverlaine", min_level = 16 },
-            Long   = { name = "Arugal's End", boss = 4275, boss_name = "Archmage Arugal", min_level = 17 },
+            Short  = { name = "Gates of Shadowfang", boss = 3914, boss_name = "Rethilgore", min_level = 13 },
+            Medium = { name = "The Baron's Hall", boss = 3887, boss_name = "Baron Silverlaine", min_level = 15 },
+            Long   = { name = "Arugal's End", boss = 4275, boss_name = "Archmage Arugal", min_level = 16 },
         },
     },
 }
@@ -301,6 +314,7 @@ for dkey, d in pairs(Config.dungeons) do
         Config.missions[key] = { key = key, name = m.name, dungeon = d.name, kind = "main", length = length,
             act = d.act, level = d.level, min_level = m.min_level, icon = d.icon, text = d.text,
             objective = "Kill " .. m.boss_name, map = d.map, entrance = d.entrance, boss = m.boss,
+            boss_name = m.boss_name, route = string.format(Config.lengths[length], m.boss_name),
             xp = Config.xp.by_length[length] }
     end
 end
@@ -309,6 +323,7 @@ for key, g in pairs(Config.gates) do
     Config.missions[key] = { key = key, name = g.name, dungeon = d.name, kind = "gate", length = g.length,
         act = d.act, level = d.level, min_level = 0, icon = "Interface\\Icons\\INV_Misc_Head_Human_01",
         text = g.text, objective = "Kill " .. g.boss_name, map = d.map, entrance = d.entrance, boss = g.boss,
+        boss_name = g.boss_name, route = string.format(Config.lengths[g.length], g.boss_name),
         xp = Config.xp.gate }
 end
 

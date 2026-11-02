@@ -2,9 +2,32 @@
 
 ## Current phase
 
-**Phase 6: Shared armory and currencies** — built 2026-11-01, automated tests 132/132 (with the
-restart test), **waiting for the owner's in-game test** (`docs/TEST-QUEUE.md`, test 6). With this,
-phases 1-6 are built: **Act I is playable** end to end (in-game tests 2-5 also still queued).
+**Act I playtest fixes** (2026-11-01). Phases 1-6 are built and Act I is playable. The owner's
+first playtest found five problems (see `docs/TEST-QUEUE.md`, test 2's result); all fixed, automated
+tests 134/134 (with the restart test). **Next:** the owner replays the session
+(`docs/TEST-SESSION.md`) to cover what the first playtest didn't reach (wounds, memorial, abandon,
+relog, most of the armory), then **phase 7: traits**. Also planned: one download bundling all the
+owner's games (`docs/BUNDLE.md`).
+
+- [x] Armory tooltips stuck on "Retrieving item information": items are now pre-fetched (a hidden
+      tooltip makes the client ask the server) and the window redraws once they're known
+- [x] Contract text ran past the window: wraps now
+- [x] Board: only 2 identical contracts at level 10. Level gates lowered and contracts offered from
+      one level below their gate (`Config.board.level_stretch`); the board picks different dungeons
+      and lengths. At level 10: e.g. Ragefire Long, Deadmines Short, Wailing Caverns Short
+- [x] Soft lock after deaths (no gold to hire): every batch now has **free recruits** a few levels
+      below the roster and **paid veterans** at the roster's level with blue starting gear and a
+      second good trait (`Config.tavern.veterans`, `sql/base/006_veterans.sql`)
+- [x] "Was it the whole dungeon?": every contract shows its route ("Short: the start of the dungeon,
+      up to Rhahk'Zor. The contract ends when the target dies...") on the board, in the window and
+      when embarking
+- [x] Found while testing: playerbots' heroes re-equipped spare gear from their bags by themselves,
+      and its `autogear` / `maintenance` commands hand out free gear. Turned off (playerbots.conf);
+      new heroes keep no spare gear; equipping checks the item really went on
+
+## Phase 6: Shared armory and currencies — built 2026-11-01
+
+Automated tests passed (132/132); first playtest done (see above).
 
 - [x] Armory (`wb_armory.lua`, table `warband_armory`): every weapon and piece of armour the
       commander or a hero loots (or wins in a roll) leaves their bags and goes to the armory, keeping
@@ -205,6 +228,10 @@ dungeon (in-game test passed 2026-11-01).
 | 2026-11-01 | "The fight ending saves them" = nobody alive in the party in combat for 3 s (and down at least 3 s) | The design names the rule but not how to detect it; numbers in `Config.death` |
 | 2026-11-01 | A commander who bleeds out fails the mission (wakes up home, wounded); the commander isn't wounded by being downed and saved | The design only covers the wipe case for the commander |
 | 2026-11-01 | The commander's wound heals after the next mission that doesn't fail, or with treatment | A commander can't "sit out" a mission like a hero |
+| 2026-11-01 | **Tavern batches: free recruits + paid veterans** (owner's idea after the playtest). 4 per batch: 2 free, a few levels below the roster; 2 veterans at roster level, blue gear, two good traits, gold | A company that lost heroes was soft-locked with no gold to hire |
+| 2026-11-01 | Contracts are offered from one level below their gate, and the board mixes dungeons and lengths | Playtest: 2 identical contracts at level 10 |
+| 2026-11-01 | Playerbots' own gear help is off: `AutoEquipUpgradeLoot`, `MaintenanceCommand`, `AutoGearCommand(AltBots)` = 0 | Heroes re-equipped spare gear by themselves; autogear/maintenance hand out free gear and enchants outside the closed economy |
+| 2026-11-01 | **One download for all the owner's games** (Scholomance Survival, Warband, future ones) for the friend | Owner's goal; plan in `docs/BUNDLE.md`, to settle in the next session |
 | 2026-11-01 | **Materials are one number for now**, not real trade-good items; looted trade goods add 1 each | The design wants real trade goods by tier for crafting; that only matters once the blacksmith exists (phase 11/12), where we'll revisit it |
 | 2026-11-01 | Selling turns vendor price into company gold at 1/400 (a level-15 green ~15 gold) | Company gold is counted in whole "gold pieces" sized for mission rewards; real vendor prices would be tiny |
 | 2026-11-01 | Only the commander and heroes in the party (online) can be equipped | Offline characters can't be changed safely while the server runs |

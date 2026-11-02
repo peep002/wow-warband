@@ -44,7 +44,19 @@ Tell me anything that looks wrong or unclear in the window (a screenshot helps a
 Known gaps (not bugs yet): dying isn't handled (phase 5), no starter gear (phase 6), no XP for
 missions (phase 4).
 
-**Result:** (waiting)
+**Result (first playtest, 2026-11-01, tests 2-6 together):** the window works and the loop played
+through until the owner died ("I was just being silly"; difficulty doesn't feel too high). Found:
+- Armory item tooltips stuck on "Retrieving item information" (the client hadn't cached the items;
+  the window never refreshed). → fixed: items are pre-fetched and the window redraws.
+- The Rewards text ran out past the window's edge. → fixed: it wraps.
+- Only 2 contracts on the board at level 10, both Short with the same reward. → fixed: lower level
+  gates (offered from one level below), and the board mixes lengths: 3 different contracts.
+- After deaths the company was soft-locked: not enough gold to hire. → fixed (owner's idea): every
+  batch has free recruits a few levels below the roster, plus paid veterans at roster level with
+  blue gear and a second good trait.
+- Unclear whether a contract was the whole dungeon. → fixed: each contract shows its route (Short =
+  the start, up to the first target; Medium = about half; Long = the whole dungeon).
+Not reached yet: wounds, memorial, abandon, relog, most of the armory. Retest with the session.
 
 ## Test 3: the tavern and your heroes (phase 3)
 

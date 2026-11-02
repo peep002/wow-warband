@@ -1,8 +1,9 @@
 -- wb_board.lua
 -- The mission board: which contracts a company is offered right now, saved in warband_board so
 -- they stay put until the next mission ends (and through restarts).
---   * Config.board.offers main missions from the current act, picked at random among those
---     whose min_level the commander has reached, different dungeons where possible.
+--   * Config.board.offers main missions from the current act, picked at random among those the
+--     commander is nearly ready for (min_level - level_stretch), different dungeons and different
+--     lengths where possible (so the offers differ in risk and reward).
 --   * Once the act's mains_before_gate main missions are done, the gate mission is offered first.
 --
 --   Board.Get(player)        the mission keys on the board (filled the first time it's asked)
@@ -45,22 +46,25 @@ local function Deal(player, c)
     -- Main missions of this act the commander is ready for, in random order.
     local fits = {}
     for key, m in pairs(Config.missions) do
-        if m.kind == "main" and m.act == actNo and m.min_level <= player:GetLevel() then fits[#fits + 1] = key end
+        if m.kind == "main" and m.act == actNo and m.min_level - Config.board.level_stretch <= player:GetLevel() then
+            fits[#fits + 1] = key
+        end
     end
     table.sort(fits) -- a fixed order first, so only the shuffle decides
     Shuffle(fits)
 
-    -- First pass: one per dungeon. Second pass: fill up with the rest.
-    local used = {}
-    for pass = 1, 2 do
+    -- Pass 1: a new dungeon and a new length. Pass 2: a new dungeon. Pass 3: anything left.
+    local usedDungeon, usedLength = {}, {}
+    for pass = 1, 3 do
         for _, key in ipairs(fits) do
             if #keys >= Config.board.offers then break end
-            local d = Config.missions[key].dungeon
+            local m = Config.missions[key]
             local taken = false
             for _, k in ipairs(keys) do taken = taken or k == key end
-            if not taken and (pass == 2 or not used[d]) then
+            local fresh = not usedDungeon[m.dungeon] and (pass >= 2 or not usedLength[m.length])
+            if not taken and (pass == 3 or fresh) then
                 keys[#keys + 1] = key
-                used[d] = true
+                usedDungeon[m.dungeon], usedLength[m.length] = true, true
             end
         end
     end

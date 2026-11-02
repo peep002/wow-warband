@@ -218,8 +218,11 @@ def main(bot, r, only=None):
     r.check("1: a new commander gets starter gear (6 armour pieces and a weapon)", len(on) >= 6, f"slots worn: {on}")
     b = bot.probe("board")
     offers = [k for k in b.get("board", "").split(",") if k]
-    r.check("1: the board offers Act I contracts a level-10 commander is ready for",
-            len(offers) >= 2 and set(offers) <= {"ragefire_short", "deadmines_short"}, b.get("board"))
+    ready = {"ragefire_short", "ragefire_medium", "ragefire_long", "deadmines_short", "wailing_short"}  # min level <= 11
+    r.check("1: the board offers 3 Act I contracts a level-10 commander is (nearly) ready for",
+            len(offers) == 3 and set(offers) <= ready, b.get("board"))
+    r.check("1: the 3 contracts are different dungeons or lengths",
+            len({o.split("_")[0] for o in offers}) >= 2 and len({o.split("_")[1] for o in offers}) >= 2, b.get("board"))
     r.check("1: a new company starts Act I with no progress", num(b, "act") == 1 and num(b, "progress") == 0, str(b))
 
     # 2. Hamlet leash --------------------------------------------------------------------------
@@ -409,8 +412,12 @@ def main(bot, r, only=None):
         r.check("6: the board deals new contracts after a mission", "board_dealt" in " ".join(bot.probe("log").values()))
         recruits, raw = tavern(bot)
         r.check("6: a new batch of 4 recruits arrives", len(recruits) == 4, raw.get("list"))
-        r.check("6: new recruits cost gold", recruits and all(x["cost"] > 0 and not x["founding"] for x in recruits),
-                raw.get("list"))
+        free = [x for x in recruits if x["cost"] == 0 and not x["founding"]]
+        paid = [x for x in recruits if x["cost"] > 0]
+        r.check("6: the batch has 2 free recruits and 2 paid veterans", len(free) == 2 and len(paid) == 2, raw.get("list"))
+        avg = 11  # the hero who went is 11, the other three 10: average 10 (rounded down) -> veterans 10, free 10 (minimum)
+        r.check("6: veterans come at the roster's level, free recruits a few below (never under 10)",
+                all(x["level"] >= 10 for x in recruits), raw.get("list"))
         if recruits:
             since = bot.mark()
             bot.cmd(".warband hire " + recruits[0]["name"])

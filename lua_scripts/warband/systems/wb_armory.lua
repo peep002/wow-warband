@@ -299,24 +299,42 @@ local function TargetOf(player, guid)
 end
 
 -- Creates the armory item in the target's bags and equips it into slot; whatever was worn there
--- goes back to the armory first. Returns ok, message.
+-- goes back to the armory. Returns ok, message.
+-- Every step is checked by looking at what's really worn afterwards: mod-ale's EquipItem reports
+-- success even when it fails, and an item only counts as back in the armory once it's really off.
 local function PutOn(player, unit, it, slot)
     local cguid = player:GetGUIDLow()
-    local oldItem = unit:GetEquippedItemBySlot(slot)
     local item = unit:AddItem(it.entry, 1)
     if not item then return false, unit:GetName() .. "'s bags are full." end
     if it.prop > 0 then item:SetRandomProperty(it.prop) end
     if it.suffix > 0 then item:SetRandomSuffix(it.suffix) end
+    local oldItem = unit:GetEquippedItemBySlot(slot)
+    local old
     if oldItem then
-        local oldEntry, oldProp, oldSuffix = oldItem:GetEntry(), oldItem:GetRandomProperty(), oldItem:GetRandomSuffix()
+        old = { entry = oldItem:GetEntry(), prop = oldItem:GetRandomProperty(), suffix = oldItem:GetRandomSuffix() }
         unit:RemoveItem(oldItem, 1)
-        CharDBQuery(string.format("INSERT INTO `warband_armory` (`company`, `entry`, `count`, `prop`, `suffix`) VALUES (%d, %d, 1, %d, %d)",
-            cguid, oldEntry, oldProp, oldSuffix))
+        if unit:GetEquippedItemBySlot(slot) then
+            unit:RemoveItem(item, 1)
+            return false, string.format("%s's %s couldn't be taken off.", unit:GetName(), Template(old.entry).name)
+        end
     end
-    local equipped = unit:EquipItem(item, slot)
-    if not equipped then
-        unit:RemoveItem(item, 1)
+    unit:EquipItem(item, slot)
+    local now = unit:GetEquippedItemBySlot(slot)
+    if not now or now:GetEntry() ~= it.entry then
+        unit:RemoveItem(it.entry, 1)                         -- the new item, still in the bags
+        if old then                                          -- put the old one back on
+            local back = unit:AddItem(old.entry, 1)
+            if back then
+                if old.prop > 0 then back:SetRandomProperty(old.prop) end
+                if old.suffix > 0 then back:SetRandomSuffix(old.suffix) end
+                unit:EquipItem(back, slot)
+            end
+        end
         return false, string.format("%s can't wear %s.", unit:GetName(), it.name)
+    end
+    if old then
+        CharDBQuery(string.format("INSERT INTO `warband_armory` (`company`, `entry`, `count`, `prop`, `suffix`) VALUES (%d, %d, 1, %d, %d)",
+            cguid, old.entry, old.prop, old.suffix))
     end
     if it.count > 1 then
         CharDBExecute(string.format("UPDATE `warband_armory` SET `count` = `count` - 1 WHERE `id` = %d", it.id))

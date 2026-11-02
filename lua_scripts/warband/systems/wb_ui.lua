@@ -52,13 +52,14 @@ local function Person(p) -- what a hero and a recruit have in common
     return { guid = p.guid, name = p.name, class = p.class, level = p.level,
              race = Config.race_names[p.race] or "?", className = Config.class_names[p.class] or "?",
              spec = SpecOf(p.class, p.spec_no).name, role = p.role, backstory = p.backstory,
-             good = Trait("positive", p.trait_pos), bad = Trait("negative", p.trait_neg) }
+             good = Trait("positive", p.trait_pos), good2 = Trait("positive", p.trait_pos2 or ""),
+             bad = Trait("negative", p.trait_neg) }
 end
 
 local function MissionData(key)
     local d = Config.missions[key]
     return { key = key, name = d.name, dungeon = d.dungeon, kind = d.kind, length = d.length, level = d.level,
-             icon = d.icon, text = d.text, objective = d.objective,
+             icon = d.icon, text = d.text, objective = d.objective, route = d.route, boss = d.boss_name,
              rewards = string.format("%d gold and %d renown for the company. Experience: about %.1f levels for you "
                  .. "and every hero who goes. Abandoning pays a quarter of the gold and XP, failing a quarter of the XP.%s",
                  Config.rewards.gold[d.kind == "gate" and "gate" or d.length] or 0,
@@ -104,7 +105,7 @@ local function Build(player)
     end
     for _, r in ipairs(Tavern.Offers(player)) do
         local p = Person(r)
-        p.cost, p.founding = r.cost, r.founding
+        p.cost, p.founding, p.veteran = r.cost, r.founding, r.veteran
         data.recruits[#data.recruits + 1] = p
     end
     return data
@@ -233,7 +234,7 @@ local function PrintTavern(player)
     if #list == 0 then player:SendBroadcastMessage("  Nobody waiting. New recruits arrive after each mission.") end
     for _, r in ipairs(list) do
         player:SendBroadcastMessage(string.format("  %s - level %d %s %s (%s), %s", r.name, r.level, SpecOf(r.class, r.spec_no).name,
-            Config.class_names[r.class] or "?", r.role, r.founding and "free" or (r.cost .. " gold")))
+            Config.class_names[r.class] or "?", r.role, r.cost == 0 and "free" or (r.cost .. " gold, veteran")))
     end
 end
 
@@ -372,7 +373,7 @@ local function MaudeMenu(player, creature)
     local free = Tavern.FoundingLeft(player)
     for i, r in ipairs(Tavern.Offers(player)) do
         local label = string.format("Hire %s: level %d %s %s (%s) - %s", r.name, r.level, SpecOf(r.class, r.spec_no).name,
-            Config.class_names[r.class] or "?", r.role, (r.founding and free > 0) and "free" or (r.cost .. " gold"))
+            Config.class_names[r.class] or "?", r.role, r.cost == 0 and "free" or (r.cost .. " gold, veteran"))
         player:GossipMenuAddItem(0, label, 0, OPT_T_HIRE + i, false, "Hire " .. r.name .. "?")
     end
     for i, h in ipairs(Roster.List(player)) do

@@ -60,6 +60,9 @@ Keep this list current. These are lost if the run folder is wiped.
   - `worldserver.conf`: `DataDir` = `C:/Claude/Projects/azerothcore/build/bin/Release/data`
     (**reuses the Scholomance server's extracted client data**, read only; same AzerothCore base).
     `AccountInstancesPerHour` = 1000, `CharacterCreating.MinLevelForHeroicCharacter` = 0.
+  - `modules\playerbots.conf` (after the first playtest): `Playerbots.AutoEquipUpgradeLoot = 0`,
+    `Playerbots.MaintenanceCommand = 0`, `Playerbots.AutoGearCommand = 0`,
+    `Playerbots.AutoGearCommandAltBots = 0` (heroes don't re-equip on their own; no free gear).
   - `modules\playerbots.conf`: `PlayerbotsDatabaseInfo` → `warband_playerbots`;
     `Playerbots.RandomBotAutologin` = 0, `Playerbots.MinRandomBots` = 0, `Playerbots.MaxRandomBots` = 0
     (no random world bots; heroes only).
@@ -109,6 +112,7 @@ Stop worldserver with `server shutdown 1` at `AC>`; Ctrl+C stops authserver.
 | `sql/base/003_board_progress.sql` | warband_characters | 2026-11-01 | `DROP TABLE warband_board; ALTER TABLE warband_company DROP COLUMN progress` |
 | `sql/base/004_death.sql` | warband_characters | 2026-11-01 | `DROP TABLE warband_memorial`; drop column `wounded` from `warband_heroes` and `warband_company` |
 | `sql/base/005_armory.sql` | warband_characters | 2026-11-01 | `DROP TABLE warband_armory` (empties every armory) |
+| `sql/base/006_veterans.sql` | warband_characters | 2026-11-01 | drop columns `trait_pos2`, `gear_quality`, `veteran` from `warband_recruits`; `trait_pos2`, `gear_quality` from `warband_heroes` |
 | `sql/updates/003_tavern_npc.sql` | warband_world | 2026-11-01 | delete 9100001 from `creature`, `creature_template`, `creature_template_model`, `npc_text` |
 
 Apply with: `& "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" -u acore -pacore <database> -e "source sql/...sql"`

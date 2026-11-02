@@ -169,7 +169,8 @@ function Missions.Embark(player, key)
     Company.Save(player)
     Log.Event(c.guid, "mission_start", string.format("%s heroes=%d", key, #heroes))
     TeleportParty(player, def.map, def.entrance)
-    player:SendBroadcastMessage(string.format("|cffffd100[Warband]|r Contract: %s. Objective: %s.", def.name, def.objective))
+    player:SendBroadcastMessage(string.format("|cffffd100[Warband]|r Contract: %s. Objective: %s. %s", def.name, def.objective,
+        def.route or ""))
     Changed(player)
     return true
 end

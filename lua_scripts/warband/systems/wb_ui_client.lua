@@ -183,16 +183,22 @@ local function MakeFrame()
     d.name:SetPoint("TOPLEFT", d.icon, "TOPRIGHT", 10, -12)
     d.facts = Text(d, "GameFontHighlightSmall", 0.8, 0.8, 0.8)
     d.facts:SetPoint("TOPLEFT", d.icon, "BOTTOMLEFT", 0, -10)
+    d.facts:SetWidth(textW)
     d.objective = Text(d, "GameFontNormal")
     d.objective:SetPoint("TOPLEFT", d.facts, "BOTTOMLEFT", 0, -12)
+    d.objective:SetWidth(textW)
+    d.route = Text(d, "GameFontHighlightSmall", 1, 0.82, 0.5)
+    d.route:SetPoint("TOPLEFT", d.objective, "BOTTOMLEFT", 0, -4)
+    d.route:SetWidth(textW)
     d.text = Text(d, "GameFontHighlight")
-    d.text:SetPoint("TOPLEFT", d.objective, "BOTTOMLEFT", 0, -8)
+    d.text:SetPoint("TOPLEFT", d.route, "BOTTOMLEFT", 0, -8)
     d.text:SetWidth(textW)
     d.rewardsLabel = Text(d, "GameFontNormal")
     d.rewardsLabel:SetPoint("TOPLEFT", d.text, "BOTTOMLEFT", 0, -14)
     d.rewardsLabel:SetText("Rewards")
     d.rewards = Text(d, "GameFontHighlightSmall")
     d.rewards:SetPoint("TOPLEFT", d.rewardsLabel, "BOTTOMLEFT", 0, -4)
+    d.rewards:SetWidth(textW)
     d.partyLabel = Text(d, "GameFontNormal")
     d.partyLabel:SetPoint("TOPLEFT", d.rewards, "BOTTOMLEFT", 0, -14)
     d.party = Text(d, "GameFontHighlightSmall")
@@ -346,7 +352,7 @@ end
 local function DrawDetail(m, onMission)
     local d = frame.detail
     Shown(d.empty, m == nil)
-    for _, w in ipairs({ d.icon, d.banner, d.name, d.facts, d.objective, d.text, d.rewardsLabel, d.rewards,
+    for _, w in ipairs({ d.icon, d.banner, d.name, d.facts, d.objective, d.route, d.text, d.rewardsLabel, d.rewards,
                          d.partyLabel, d.party, d.button }) do Shown(w, m ~= nil) end
     if not m then return end
     d.icon:SetTexture(m.icon or QUESTION)
@@ -355,6 +361,7 @@ local function DrawDetail(m, onMission)
     d.facts:SetText(string.format("%s   |   %s   |   %s   |   Recommended level %s",
         m.dungeon, m.kind == "gate" and "|cffff8020Act gate|r" or (Cap(m.kind) .. " mission"), m.length, m.level))
     d.objective:SetText("Objective: |cffffffff" .. (m.objective or "") .. "|r")
+    d.route:SetText(m.route or "")
     d.text:SetText(m.text or "")
     d.rewards:SetText(m.rewards or "")
 
@@ -395,7 +402,8 @@ local function DrawMissions()
         r.key = m.key
         r.icon:SetTexture(m.icon or QUESTION)
         r.name:SetText(m.name)
-        r.sub:SetText(string.format("%s  -  %s, %s", m.dungeon, m.kind == "gate" and "|cffff8020Gate|r" or Cap(m.kind), m.length))
+        r.sub:SetText(string.format("%s  -  %s, %s", m.dungeon, m.kind == "gate" and "|cffff8020Gate|r" or m.length,
+            m.boss and ("to " .. m.boss) or ""))
         Shown(r.sel, m.key == selected)
         r:Show()
         if m.key == selected then current = m end
@@ -447,8 +455,10 @@ local function Card(page, i)
     c.what:SetPoint("TOPLEFT", c.name, "BOTTOMLEFT", 0, -3)
     c.good = TraitButton(c)
     c.good:SetPoint("TOPLEFT", c.what, "BOTTOMLEFT", 0, -3)
+    c.good2 = TraitButton(c)
+    c.good2:SetPoint("LEFT", c.good, "RIGHT", 14, 0)
     c.bad = TraitButton(c)
-    c.bad:SetPoint("LEFT", c.good, "RIGHT", 14, 0)
+    c.bad:SetPoint("LEFT", c.good2, "RIGHT", 14, 0)
     c.story = Text(c, "GameFontDisableSmall")
     c.story:SetPoint("TOPLEFT", c.good, "BOTTOMLEFT", 0, -3)
     c.story:SetWidth(W - 36 - 40 - 64 - 170)
@@ -486,6 +496,8 @@ local function FillCard(c, p)
     c.role:SetTextColor(role[2], role[3], role[4])
     c.what:SetText(string.format("Level %d %s  -  %s %s", p.level, p.race, p.spec, p.className))
     FillTrait(c.good, p.good, "+", { 0.3, 1, 0.3 })
+    FillTrait(c.good2, p.good2, "+", { 0.3, 1, 0.3 })
+    if not p.good2 then c.good2:SetWidth(1) end -- keeps the bad trait close when there's one good one
     FillTrait(c.bad, p.bad, "-", { 1, 0.35, 0.3 })
     c.story:SetText(p.backstory or "")
     c.button2:Hide()
@@ -548,9 +560,10 @@ local function DrawTavern()
     for i, r in ipairs(data.recruits) do
         local c = Card(page, i)
         FillCard(c, r)
-        local free = r.founding and data.foundingLeft > 0
+        local free = r.cost == 0
         local afford = free or data.gold >= r.cost
-        c.status:SetText(free and "|cff33ff33Free|r" or string.format("%s%d gold|r", afford and "|cffffd100" or "|cffff3333", r.cost))
+        c.status:SetText(free and "|cff33ff33Free|r" or string.format("|cff3399ffVeteran|r: blue gear, 2 good traits\n%s%d gold|r",
+            afford and "|cffffd100" or "|cffff3333", r.cost))
         c.button:Show()
         c.button:SetText("Hire")
         local guid = r.guid
@@ -578,10 +591,49 @@ local function ItemIcon(entry)
     return (GetItemIcon and GetItemIcon(entry)) or select(10, GetItemInfo(entry)) or QUESTION
 end
 
+-- The game client only knows an item's name, icon and stats once the server has told it. Showing an
+-- item link in a tooltip makes the client ask; until the answer comes it says "Retrieving item
+-- information". So: ask for every unknown armory item up front (a hidden tooltip), redraw the window
+-- once the answers are in, and refresh a tooltip that was opened too early.
+local scanTip, refresher, hovered
+local function Prefetch(items)
+    scanTip = scanTip or CreateFrame("GameTooltip", "WarbandScanTooltip", nil, "GameTooltipTemplate")
+    local missing = 0
+    for _, it in ipairs(items or {}) do
+        if not GetItemInfo(it.entry) then
+            missing = missing + 1
+            scanTip:SetOwner(UIParent, "ANCHOR_NONE")
+            scanTip:SetHyperlink("item:" .. it.entry)
+        end
+    end
+    if missing == 0 or refresher then return end
+    refresher = CreateFrame("Frame")
+    local waited, tries = 0, 0
+    refresher:SetScript("OnUpdate", function(self, elapsed)
+        waited = waited + elapsed
+        if waited < 1 then return end
+        waited, tries = 0, tries + 1
+        local still = 0
+        for _, it in ipairs(data and data.armory or {}) do
+            if not GetItemInfo(it.entry) then still = still + 1 end
+        end
+        if frame and frame:IsShown() then Handlers.Draw() end
+        if hovered and GameTooltip:IsOwned(hovered.owner) then
+            GameTooltip:SetHyperlink(ItemLink(hovered.item))
+        end
+        if still == 0 or tries >= 8 then
+            self:SetScript("OnUpdate", nil)
+            refresher = nil
+        end
+    end)
+end
+
 local function ShowItemTooltip(owner, it)
     GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
     GameTooltip:SetHyperlink(ItemLink(it))
     GameTooltip:Show()
+    hovered = { owner = owner, item = it }
+    if not GetItemInfo(it.entry) then Prefetch({ it }) end
 end
 
 local function ArmoryRow(i)
@@ -617,6 +669,7 @@ end
 
 local function DrawArmory()
     local ap = frame.pages.armory
+    Prefetch(data.armory)
     local upgrades, junk = 0, 0
     for _, it in ipairs(data.armory) do
         if #it.upgrades > 0 then upgrades = upgrades + 1 end
@@ -695,6 +748,7 @@ local function DrawMemorial()
         c.what:SetText(string.format("Level %d %s %s  -  survived %d mission%s", f.level, f.race, f.className, f.missions,
             f.missions == 1 and "" or "s"))
         c.good:Hide()
+        c.good2:Hide()
         c.bad:Hide()
         c.story:SetText("|cffd0a060" .. f.cause .. "|r")
         c.status:SetText("|cffa0a0a0" .. f.died .. "|r")

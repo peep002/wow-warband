@@ -135,6 +135,10 @@ each mission; the rest rest, train, or recover.
 
 - The tavern shows **4 recruits** after each mission, more with each tavern upgrade **(decided
   2026-11-01; the PDF had 3, up to 5)**. Unhired recruits leave when the next mission ends.
+- **Free recruits and veterans (decided 2026-11-01, after the first playtest):** half of each batch
+  are free recruits a few levels below the roster (so a company that lost its heroes is never
+  stuck); the rest are paid veterans at the roster's level, with better (blue) starting gear and a
+  second good trait. *(This replaces "recruits arrive 4 levels below the roster and cost gold".)*
 - **Founding (decided 2026-11-01):** a new company's first tavern shows 6 recruits, always
   including a tank and a healer, and the first 4 hires are free. After that the tavern works as
   above.

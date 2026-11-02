@@ -71,14 +71,16 @@ local function LinkAccount(account)
 end
 
 local COLUMNS = "h.`guid`, c.`name`, c.`class`, c.`race`, c.`level`, h.`spec_no`, h.`role`, h.`trait_pos`, "
-    .. "h.`trait_neg`, h.`backstory`, h.`status`, h.`in_party`, h.`set_up`, h.`start_level`, h.`missions`, h.`wounded`"
+    .. "h.`trait_neg`, h.`backstory`, h.`status`, h.`in_party`, h.`set_up`, h.`start_level`, h.`missions`, h.`wounded`, "
+    .. "h.`trait_pos2`, h.`gear_quality`"
 
 local function ReadHero(q)
     return { guid = q:GetUInt32(0), name = q:GetString(1), class = q:GetUInt32(2), race = q:GetUInt32(3),
              level = q:GetUInt32(4), spec_no = q:GetUInt32(5), role = q:GetString(6), trait_pos = q:GetString(7),
              trait_neg = q:GetString(8), backstory = q:GetString(9), status = q:GetString(10),
              in_party = q:GetUInt32(11) == 1, set_up = q:GetUInt32(12) == 1, start_level = q:GetUInt32(13),
-             missions = q:GetUInt32(14), wounded = q:GetUInt32(15) == 1 }
+             missions = q:GetUInt32(14), wounded = q:GetUInt32(15) == 1, trait_pos2 = q:GetString(16),
+             gear_quality = q:GetUInt32(17) }
 end
 
 -- Wounds -------------------------------------------------------------------------------------------
@@ -233,13 +235,14 @@ function Roster.Send(player, guid)
     return true, h.name .. " heads to the barracks to rest."
 end
 
--- fields: guid, spec_no, role, trait_pos, trait_neg, backstory, start_level
+-- fields: guid, spec_no, role, trait_pos, trait_pos2, trait_neg, backstory, start_level, gear_quality
 function Roster.Add(player, f)
     local c = Company.Get(player)
     CharDBQuery(string.format(
-        "INSERT INTO `warband_heroes` (`guid`, `company`, `spec_no`, `role`, `trait_pos`, `trait_neg`, `backstory`, `start_level`) "
-        .. "VALUES (%d, %d, %d, '%s', '%s', '%s', '%s', %d)",
-        f.guid, c.guid, f.spec_no, f.role, f.trait_pos, f.trait_neg, f.backstory:gsub("'", "\\'"), f.start_level))
+        "INSERT INTO `warband_heroes` (`guid`, `company`, `spec_no`, `role`, `trait_pos`, `trait_pos2`, `trait_neg`, `backstory`, "
+        .. "`start_level`, `gear_quality`) VALUES (%d, %d, %d, '%s', '%s', '%s', '%s', '%s', %d, %d)",
+        f.guid, c.guid, f.spec_no, f.role, f.trait_pos, f.trait_pos2 or "", f.trait_neg, (f.backstory:gsub("'", "\\'")),
+        f.start_level, f.gear_quality or Config.heroes.gear_quality))
     Load(c.guid)
     Changed(player)
     return Roster.Get(player, f.guid)
@@ -322,12 +325,32 @@ function Roster.Memorial(player)
     return list
 end
 
+-- Every bag position as { bag, slot }: the backpack (bag 255, slots 23-38) and bags 19-22.
+function Roster.BagSlots()
+    local list = {}
+    for slot = 23, 38 do list[#list + 1] = { 255, slot } end
+    for bag = 19, 22 do
+        for slot = 0, 35 do list[#list + 1] = { bag, slot } end
+    end
+    return list
+end
+
 -- A hero logs in (as a bot) -------------------------------------------------------------------
 
 local function SetUp(bot, h)
-    local factory = CreatePlayerbotFactory(bot, h.start_level, Config.heroes.gear_quality, 0)
+    local factory = CreatePlayerbotFactory(bot, h.start_level, h.gear_quality or Config.heroes.gear_quality, 0)
     factory:Randomize(false)                         -- level, skills, spells, gear, bags...
     factory:InitTalentsBySpecNo(bot, h.spec_no, true) -- the spec it was recruited with
+    -- The factory can leave spare weapons and armour in the bags; a hero only keeps what they wear
+    -- (spares would be free gear outside the armory).
+    for _, pos in ipairs(Roster.BagSlots()) do
+        local item = bot:GetItemByPos(pos[1], pos[2])
+        if item then
+            local q = WorldDBQuery("SELECT `class` FROM `item_template` WHERE `entry` = " .. item:GetEntry())
+            local class = q and q:GetUInt32(0)
+            if class == 2 or class == 4 then bot:RemoveItem(item, item:GetCount()) end
+        end
+    end
     bot:SaveToDB()
     h.set_up = true
     Save(h, { "set_up" })
