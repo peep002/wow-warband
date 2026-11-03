@@ -48,8 +48,8 @@ Automated tests passed: 179/179 with the restart test (2026-11-02).
 
 ## Phase 7: Traits and personalities — built 2026-11-01
 
-Automated tests passed (144/144 at phase 7; 179/179 with phase 8 and the restart test). The restart test passed in the run before, 150/152, whose two
-failures were test timing, fixed in the last run).
+Automated tests passed (144/144 at the time; the restart test passed in the run before, 150/152,
+whose two failures were test timing, fixed in the last run).
 
 - [x] `wb_traits.lua`: eight traits work now, each announced in chat with its name in brackets:
       | Trait | What it does now |
