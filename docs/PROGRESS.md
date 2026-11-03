@@ -2,14 +2,53 @@
 
 ## Current phase
 
-**Phase 7: traits — built 2026-11-01.** Waiting for the owner's in-game check (`docs/TEST-QUEUE.md`
-test 7, also steps 21-22 of `docs/TEST-SESSION.md`) and the replay of the Act I playtest (owner said
-"start phase 7" before replaying). **Next:** record the replay's results and fix what's found, then
-phase 8 (stress). The bundle plan is settled (`docs/BUNDLE.md`), not built.
+**Phase 8: stress — built 2026-11-01** (owner: "go ahead" before testing phase 7). Waiting for the
+owner's in-game checks: the Act I playtest replay, test 7 (traits) and test 8 (stress) in
+`docs/TEST-QUEUE.md`, all in `docs/TEST-SESSION.md`. **Next:** record and fix what the owner finds,
+then phase 9 (marks). The bundle plan is settled (`docs/BUNDLE.md`), not built.
+
+## Phase 8: Stress — built 2026-11-01
+
+Automated tests passed: 179/179 with the restart test (2026-11-02).
+
+- [x] `wb_stress.lua`: every hero has stress 0-200, saved (`warband_heroes.stress`, `sql/base/008_stress.sql`).
+      The commander has none. All numbers in `Config.stress` (my first guesses, the design gives none):
+      | Gain or relief | Stress |
+      |---|---|
+      | A heavy hit (one blow for 12%+ of max health; stands in for crits), at most every 3 s | +2 |
+      | An ally goes down / the commander goes down / an ally dies for good | +8 / +10 / +20 |
+      | End of a mission (everyone who went): Short / Medium / Long / gate | +4 / +8 / +12 / +15 |
+      | ...abandoned / failed, on top | +10 / +20 |
+      | Sat the mission out in the barracks (Restless: +8 instead) | -10 |
+      | A drink at the tavern (10 gold + 1 per level) | -40 |
+      | Brave | gains x0.75 |
+- [x] At 100, a resolve check: 3 in 4 an affliction, 1 in 4 a virtue (stress drops to 50)
+      | Affliction | Effect | Virtue | Effect |
+      |---|---|---|---|
+      | Paranoid | refuses half the heals from others | Stalwart | can't die for good (wounded down = a normal down; bleeding out just keeps them down) |
+      | Hopeless | -15% damage (hidden aura) | Courageous | heavy hits don't stress the rest of the party |
+      | Selfish | keeps 25% of looted gear; hands it back when cured | Focused | +10% crit (hidden aura) |
+      | Fearful | panics below 50% health, once per fight | | |
+      | Abusive | after every fight, the other heroes +3 | | |
+      An affliction lasts until stress is relieved below 50; a virtue until the end of the mission
+      (or of the next one, if it came from the mission's end stress).
+- [x] At 200 on a mission: heart attack, straight to death's door (wounded = dies for good), stress 150.
+      Off a mission stress stops at 199.
+- [x] Hidden auras: `sql/updates/005_stress_spells.sql` (102010 Hopeless, 102011 Focused)
+- [x] Brave and Restless work now (their "not active yet" note is gone)
+- [x] Window: a stress bar on every hero card (green/yellow/orange/red), the affliction (red) or
+      virtue (blue) beside it, a tooltip explaining both, and a **Drink** button. Cards are a bit
+      taller; the backstory is one line and gets shorter when more buttons show
+- [x] Chat: `.warband drink NAME`; `.warband roster` shows stress. Maude's plain menu offers drinks
+- [x] Fixed (found by the tests): a hero who was down when the mission's boss died was carried home
+      but got **no mission XP** (a dead character can't gain XP). They're now paid a few seconds after
+      being revived at home ("Experience: NAME +... (carried home)"). Failed missions still pay only
+      those left standing
+- [ ] Owner: in-game test (test 8)
 
 ## Phase 7: Traits and personalities — built 2026-11-01
 
-Automated tests passed (144/144; the restart test passed in the run before, 150/152, whose two
+Automated tests passed (144/144 at phase 7; 179/179 with phase 8 and the restart test). The restart test passed in the run before, 150/152, whose two
 failures were test timing, fixed in the last run).
 
 - [x] `wb_traits.lua`: eight traits work now, each announced in chat with its name in brackets:
@@ -226,7 +265,10 @@ dungeon (in-game test passed 2026-11-01).
   owner's choice, no free stopgap). Only looted consumables. Hunter commanders start with no ammo;
   hunter heroes probably run dry too (playerbots' top-ups are off), not checked yet. Heroes eat and
   drink for free (playerbots' `food` cheat).
-- Six traits do nothing yet (they need stress, darkness, supplies or chests); their tooltips say so.
+- Four traits do nothing yet (Hates the Dark, Night Owl, Quartermaster, Lucky: darkness, supplies,
+  chests); their tooltips say so. Stress from darkness, torches and food comes with phase 10.
+- Paranoid's refused heals give no message; the heal just does nothing (not checked how it looks in
+  the combat log).
 - Coward uses a plain "feared" state: the hero runs in a random direction, possibly into another pack.
 - Clumsy and Hothead only pull monsters the hero can see; in twisty caves that's sometimes nobody.
 - The hero pool shrinks by every hero who dies or retires. 500 is plenty for now; re-running
@@ -268,6 +310,15 @@ dungeon (in-game test passed 2026-11-01).
 | 2026-11-01 | **Stalwart Shield** = +10% threat only | "Never loses aggro to a single crit" is what extra threat does; there's no separate crit rule to hook |
 | 2026-11-01 | **Greedy**'s pocketed items come back to the armory when that hero dies for good | Same as their bag gear; the loss stings but isn't forever |
 | 2026-11-01 | Glass Jaw covers melee and ranged crits, not spell crits | The server has no working "spell crit damage taken" aura; most dungeon damage is melee |
+| 2026-11-01 | **The commander has no stress** (check with owner) | The design gives stress to heroes; afflictions on the player's own character would take control away from them |
+| 2026-11-01 | Stress numbers (table in phase 8) are first guesses, all in `Config.stress` | The design names the sources but not the amounts; tune after playing |
+| 2026-11-01 | "Taking crits" counts as **heavy hits**: one blow for 12%+ of max health | The server doesn't tell scripts which hits were crits |
+| 2026-11-01 | **Paranoid** refuses half the heals from others, not all | Refusing every heal would make a Paranoid tank certain to die for good |
+| 2026-11-01 | **Selfish** = keeps a quarter of looted gear (like Greedy), returned when cured | "Takes the best armory drop" needs a choice the bot can't make; this reuses Greedy's pocket |
+| 2026-11-01 | **Fearful** ("won't hold the gate") = panics below 50% health once per fight, like a stronger Coward | No "gate" to hold in a dungeon fight; running away is the readable version |
+| 2026-11-01 | **Courageous** = heavy hits don't stress the rest of the party while they stand; **Stalwart** (virtue) = can't die for good while it lasts | Literal readings of "reduces party stress on crits" and "immune to death's door" in our death system |
+| 2026-11-01 | Afflictions last until relieved below 50 stress; virtues last until the end of the mission | Darkest Dungeon's rule, roughly; the design doesn't say |
+| 2026-11-01 | Stress relief for now = a drink at the tavern (Maude); the chapel and inn come with the buildings (phase 11) | The tavern is the only relief building that exists |
 | 2026-11-01 | **No free rations before phase 10**: food, water, ammo and reagents wait for the Provisioner and mission supplies | Owner's choice; keeps the closed economy as designed |
 | 2026-11-01 | Custom spell ids for Warband: 102000-102099 | Like the Scholomance project: a 9100000+ spell id would make the server reserve room for 9 million spells |
 | 2026-11-01 | **Materials are one number for now**, not real trade-good items; looted trade goods add 1 each | The design wants real trade goods by tier for crafting; that only matters once the blacksmith exists (phase 11/12), where we'll revisit it |

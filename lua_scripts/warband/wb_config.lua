@@ -82,7 +82,7 @@ Config.specs = {
 -- What the working ones do, and their numbers, is in Config.trait_effects below (wb_traits.lua).
 Config.traits = {
     positive = {
-        brave         = { name = "Brave", text = "25% less stress gain.", later = "stress (phase 8)" },
+        brave         = { name = "Brave", text = "25% less stress gain." },
         stalwart      = { name = "Stalwart Shield", text = "Causes 10% more threat, so a single big hit from an ally won't pull enemies off them.", only = "tank" },
         selfless      = { name = "Selfless", text = "Once per fight, when an ally is about to go down, draws the enemies hitting them onto themself." },
         night_owl     = { name = "Night Owl", text = "+8% damage on high-darkness missions.", later = "darkness (phase 10)" },
@@ -95,8 +95,8 @@ Config.traits = {
         greedy        = { name = "Greedy", text = "10% chance to pocket a drop before it reaches the armory. It turns up again if they ever fall." },
         clumsy        = { name = "Clumsy", text = "Sometimes stumbles into a second pack in the middle of a fight." },
         glass_jaw     = { name = "Glass Jaw", text = "Takes 8% more damage from melee and ranged crits." },
-        restless      = { name = "Restless", text = "Gains stress each time they're benched for a mission.", later = "stress (phase 8)" },
-        hates_dark    = { name = "Hates the Dark", text = "Double stress gain when torches run low.", later = "stress and darkness (phases 8 and 10)" },
+        restless      = { name = "Restless", text = "Gains stress each time they're benched for a mission, instead of resting it off." },
+        hates_dark    = { name = "Hates the Dark", text = "Double stress gain when torches run low.", later = "darkness and torches (phase 10)" },
         hothead       = { name = "Hothead", text = "Sometimes charges the next pack right after a fight, before the healer is ready." },
     },
 }
@@ -112,6 +112,44 @@ Config.trait_effects = {
     greedy    = { chance = 0.10 },                     -- per armory item looted while they're in the party
     clumsy    = { chance = 0.20, after = 4, range = 30 },  -- seconds into a fight; yards to the extra pack
     hothead   = { chance = 0.25, after = 2, range = 40 },  -- seconds after a fight ends; yards to the pack
+}
+
+-- Stress (wb_stress.lua) -----------------------------------------------------------------------
+-- Heroes only (the commander has none). 0-200. At resolve_at a resolve check: an affliction, or
+-- (virtue_chance) a virtue. At heart_attack_at, on a mission: straight to death's door.
+Config.stress = {
+    max = 200, resolve_at = 100, heart_attack_at = 200, after_heart_attack = 150,
+    virtue_chance  = 0.25,
+    virtue_sets    = 50,     -- a virtue's relief: stress drops to this
+    cure_below     = 50,     -- an affliction ends once stress is relieved below this
+    -- Gains on a mission. "Heavy hit" = one hit for at least heavy_hit of max health (the server
+    -- doesn't tell scripts which hits were crits, so big hits stand in for them).
+    heavy_hit = 0.12, heavy_hit_stress = 2, heavy_hit_cooldown = 3, -- seconds between two for one hero
+    ally_downed = 8, commander_downed = 10, ally_died = 20,
+    -- At the end of a mission, for everyone who went (abandoned/failed come on top of the length's).
+    mission = { Short = 4, Medium = 8, Long = 12, gate = 15 }, abandoned = 10, failed = 20,
+    bench = -10,             -- a hero who sat the mission out in the barracks
+    restless_bench = 8,      -- ...unless Restless: they gain this instead
+    brave = 0.75,            -- Brave: gains times this
+    -- Afflictions and virtues
+    paranoid_refuse = 0.5,   -- share of heals from others a Paranoid hero refuses
+    fearful_below = 50,      -- Fearful: panics below this health % (once per fight), like a Coward
+    selfish_chance = 0.25,   -- Selfish: share of looted gear they keep (handed back once cured)
+    abusive = 3,             -- Abusive: the other heroes gain this after every fight
+    auras = { hopeless = 102010, focused = 102011 }, -- hidden spells (sql/updates/005_stress_spells.sql)
+    -- Relief in the hamlet: a drink at the tavern (the chapel and inn come with the buildings, phase 11)
+    drink = { amount = 40, cost_base = 10, cost_per_level = 1 },
+}
+
+Config.resolves = {
+    paranoid   = { name = "Paranoid", kind = "affliction", text = "Refuses half the heals others cast on them." },
+    hopeless   = { name = "Hopeless", kind = "affliction", text = "Deals 15% less damage." },
+    selfish    = { name = "Selfish", kind = "affliction", text = "Keeps a quarter of the gear looted while they're in the party; hands it back once cured." },
+    fearful    = { name = "Fearful", kind = "affliction", text = "Panics and runs below 50% health (once per fight)." },
+    abusive    = { name = "Abusive", kind = "affliction", text = "After every fight, the other heroes gain 3 stress." },
+    stalwart   = { name = "Stalwart", kind = "virtue", text = "Can't die for good while it lasts: going down while wounded or bleeding out just keeps them down until the fight ends." },
+    courageous = { name = "Courageous", kind = "virtue", text = "While they stand, heavy hits don't stress the rest of the party." },
+    focused    = { name = "Focused", kind = "virtue", text = "+10% critical strike chance." },
 }
 
 -- One-line backstories for recruits, picked at random.

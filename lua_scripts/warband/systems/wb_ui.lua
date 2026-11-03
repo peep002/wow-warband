@@ -17,6 +17,7 @@ local Missions = require("wb_missions")
 local Roster   = require("wb_roster")
 local Tavern   = require("wb_tavern")
 local Armory   = require("wb_armory")
+local Stress   = require("wb_stress")
 local Log      = require("wb_log")
 
 local UI = {}
@@ -86,6 +87,10 @@ local function Build(player)
         local p = Person(h)
         p.status, p.inParty, p.missions, p.wounded, p.treatCost = h.status, h.in_party, h.missions, h.wounded,
             Roster.TreatCost(h.level)
+        local r = Stress.Resolve(h)
+        p.stress, p.stressMax, p.drinkCost, p.drinkAmount = h.stress, Config.stress.max, Stress.DrinkCost(h.level),
+            Config.stress.drink.amount
+        p.resolve = r and { name = r.name, kind = r.kind, text = r.text } or nil
         data.roster[#data.roster + 1] = p
     end
     for _, f in ipairs(Roster.Memorial(player)) do
@@ -160,6 +165,7 @@ AIO.AddHandlers("Warband", {
     end,
     Call = Act(Roster.Call),
     Treat = Act(Roster.Treat),
+    Drink = Act(Stress.Drink),
     Sell = Act(Armory.Sell),
     Salvage = Act(Armory.Salvage),
     Equip = function(player, id, guid)
@@ -196,7 +202,9 @@ local function PrintRoster(player)
         player:SendBroadcastMessage(string.format("  %s - level %d %s %s (%s), %s, %d missions", h.name, h.level,
             SpecOf(h.class, h.spec_no).name, Config.class_names[h.class] or "?", h.role,
             h.status ~= "alive" and h.status or (h.in_party and "in your party" or "in the barracks"), h.missions)
-            .. (h.wounded and string.format(", |cffff3333wounded|r (treat: %d gold)", Roster.TreatCost(h.level)) or ""))
+            .. (h.wounded and string.format(", |cffff3333wounded|r (treat: %d gold)", Roster.TreatCost(h.level)) or "")
+            .. (h.status == "alive" and string.format(", stress %d/%d", h.stress, Config.stress.max) or "")
+            .. (Stress.Resolve(h) and (", " .. Stress.Resolve(h).name) or ""))
     end
     local c = Company.Get(player)
     if c.wounded == 1 then
@@ -264,6 +272,11 @@ local COMMANDS = {
         if not h then return Reply(player, false, "No hero called '" .. arg .. "' on your roster.") end
         Reply(player, Roster.Treat(player, h.guid))
     end,
+    drink = function(player, arg)
+        local h = FindByName(Roster.List(player), arg)
+        if not h then return Reply(player, false, "No hero called '" .. arg .. "' on your roster.") end
+        Reply(player, Stress.Drink(player, h.guid))
+    end,
     abandon = function(player) Reply(player, Missions.Abandon(player)) end,
     hire = function(player, arg)
         local r = FindByName(Tavern.Offers(player), arg)
@@ -290,7 +303,7 @@ RegisterPlayerEvent(PLAYER_EVENT_ON_COMMAND, Log.Safe("ui command", function(eve
     local fn = COMMANDS[(sub or ""):lower()]
     if not fn then
         Reply(player, false, "Commands: .warband, .warband roster, .warband tavern, .warband armory, .warband memorial, "
-            .. ".warband hire NAME, .warband call NAME, .warband send NAME, .warband treat NAME|me, .warband equip ID NAME|me, "
+            .. ".warband hire NAME, .warband call NAME, .warband send NAME, .warband treat NAME|me, .warband drink NAME, .warband equip ID NAME|me, "
             .. ".warband equipall, .warband sell ID, .warband salvage ID, .warband selljunk, .warband abandon")
         return false
     end
@@ -364,7 +377,7 @@ end))
 -- Maude Ashby: the tavern and the roster ---------------------------------------------------------
 -- Menu options carry a position in the list (hire 101, 102...), since character ids are too big.
 
-local OPT_T_WINDOW, OPT_T_HIRE, OPT_T_CALL, OPT_T_SEND = 1, 100, 200, 300
+local OPT_T_WINDOW, OPT_T_HIRE, OPT_T_CALL, OPT_T_SEND, OPT_T_DRINK = 1, 100, 200, 300, 400
 
 local function MaudeMenu(player, creature)
     player:GossipClearMenu()
@@ -382,6 +395,10 @@ local function MaudeMenu(player, creature)
                 player:GossipMenuAddItem(0, "Send " .. h.name .. " to the barracks.", 0, OPT_T_SEND + i)
             else
                 player:GossipMenuAddItem(0, "Call " .. h.name .. " to your party.", 0, OPT_T_CALL + i)
+            end
+            if h.stress > 0 then
+                player:GossipMenuAddItem(0, string.format("Buy %s a drink (stress %d, -%d) - %d gold", h.name, h.stress,
+                    Config.stress.drink.amount, Stress.DrinkCost(h.level)), 0, OPT_T_DRINK + i)
             end
         end
     end
@@ -407,9 +424,12 @@ RegisterCreatureGossipEvent(MAUDE, GOSSIP_EVENT_ON_SELECT, Log.Safe("maude selec
     elseif intid > OPT_T_CALL and intid < OPT_T_SEND then
         local h = Roster.List(player)[intid - OPT_T_CALL]
         if h then Reply(player, Roster.Call(player, h.guid)) end
-    elseif intid > OPT_T_SEND then
+    elseif intid > OPT_T_SEND and intid < OPT_T_DRINK then
         local h = Roster.List(player)[intid - OPT_T_SEND]
         if h then Reply(player, Roster.Send(player, h.guid)) end
+    elseif intid > OPT_T_DRINK then
+        local h = Roster.List(player)[intid - OPT_T_DRINK]
+        if h then Reply(player, Stress.Drink(player, h.guid)) end
     end
     MaudeMenu(player, creature)
 end))

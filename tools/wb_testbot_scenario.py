@@ -289,10 +289,17 @@ def traits_test(bot, r):
     set_traits(bot, a, neg="clumsy")
     bot.probe("traitset clumsy chance 1")
     bot.probe("traitset clumsy range 120")
-    since = bot.mark()
-    bot.probe("aggro %s 150" % a)
-    r.check("12: a Clumsy hero stumbles into another pack mid-fight",
-            bot.wait_chat("stumbles into another pack", 12, since) is not None)
+    # Two tries: a pull needs a second pack in sight, and in the Deadmines' tunnels there isn't always one.
+    ok = False
+    for _ in range(2):
+        since = bot.mark()
+        bot.probe("aggro %s 150" % a)
+        ok = bot.wait_chat("stumbles into another pack", 12, since) is not None
+        if ok:
+            break
+        bot.probe("hp %s 100" % a)
+        end_fight(bot)
+    r.check("12: a Clumsy hero stumbles into another pack mid-fight", ok)
     bot.probe("traitset clumsy chance 0.2")
     set_traits(bot, a)
     bot.probe("hp %s 100" % a)
@@ -357,6 +364,161 @@ def traits_test(bot, r):
             f"{before} -> {back}")
     bot.cmd(".warband abandon")
     wait_state(bot, lambda s: at_home(s) and s.get("mission") == "none", timeout=20)
+
+
+def stress(bot, name):
+    """dict(stress, resolve, kind, hopeless, focused, alive)"""
+    s = bot.probe("stress " + name)
+    return dict(stress=num(s, "stress"), resolve=s.get("resolve", "?"), kind=s.get("kind", "?"),
+                hopeless=num(s, "hopeless") == 1, focused=num(s, "focused") == 1, alive=num(s, "alive") == 1, raw=str(s))
+
+
+def plain(bot, name, neg="hates_dark"):
+    """Traits that do nothing yet (darkness is phase 10): no Brave or Restless in the numbers."""
+    set_traits(bot, name, pos="night_owl", neg=neg)
+
+
+def stress_test(bot, r):
+    """Phase 8. P and Q go on a mission; R1 and R2 (Restless) sit it out in the barracks."""
+    time.sleep(11)
+    heroes, raw = roster(bot)
+    alive = [n for n, h in heroes.items() if h["status"] == "alive"]
+    recruits, _ = tavern(bot)
+    for rec in sorted(recruits, key=lambda x: x["cost"]):
+        if len(alive) >= 4 or rec["cost"] > num(state(bot), "gold"):
+            break
+        bot.cmd(".warband hire " + rec["name"])
+        time.sleep(1)
+        alive.append(rec["name"])
+    heroes, raw = roster(bot)
+    alive = [n for n, h in heroes.items() if h["status"] == "alive"]
+    r.check("13: four living heroes for the stress tests", len(alive) >= 4, raw.get("list"))
+    if len(alive) < 2:
+        return
+    p, q = alive[0], alive[1]
+    benched = alive[2:4]
+    for n in alive[:4]:
+        plain(bot, n)
+        bot.cmd(".warband treat " + n)
+    for n in (p, q):
+        if not heroes[n]["party"]:
+            bot.cmd(".warband call " + n)
+    for n in benched:
+        if heroes[n]["party"]:
+            bot.cmd(".warband send " + n)
+    wait_state(bot, lambda s: num(s, "bots") == 2, timeout=25)
+
+    # Relief at the tavern.
+    bot.probe("stress %s 60" % p)
+    gold = num(state(bot), "gold")
+    level = roster(bot)[0][p]["level"]
+    since = bot.mark()
+    bot.cmd(".warband drink " + p)
+    r.check("13: a drink at the tavern is confirmed", bot.wait_chat(p + " drinks at the tavern", 5, since) is not None)
+    s = stress(bot, p)
+    r.check("13: a drink takes 40 stress off", s["stress"] == 20, s["raw"])
+    r.check("13: a drink costs 10 gold + 1 per level", num(state(bot), "gold") == gold - (10 + level),
+            f"gold {gold} -> {state(bot).get('gold')}, level {level}")
+    bot.probe("stress %s 0" % p)
+    since = bot.mark()
+    bot.cmd(".warband drink " + p)
+    r.check("13: no drink for a hero without stress", bot.wait_chat("isn't stressed", 5, since) is not None)
+
+    # Brave: 25% less.
+    set_traits(bot, p, pos="brave", neg="hates_dark")
+    bot.probe("stress %s +8" % p)
+    r.check("13: a Brave hero gains 25% less stress (8 -> 6)", stress(bot, p)["stress"] == 6, stress(bot, p)["raw"])
+    plain(bot, p)
+
+    # The resolve check at 100: an affliction; relief below 50 cures it.
+    bot.probe("stressset virtue_chance 0")
+    bot.probe("stress %s 95" % p)
+    since = bot.mark()
+    bot.probe("stress %s +10" % p)
+    s = stress(bot, p)
+    r.check("13: at 100 stress the resolve is tested", bot.wait_chat(p + "'s resolve is tested", 5, since) is not None)
+    r.check("13: ...usually an affliction", s["kind"] == "affliction", s["raw"])
+    since = bot.mark()
+    bot.probe("stress %s -60" % p)
+    s = stress(bot, p)
+    r.check("13: relief below 50 cures the affliction", s["resolve"] == "none"
+            and bot.wait_chat("is no longer", 5, since) is not None, s["raw"])
+    bot.probe("resolve %s hopeless" % p)
+    time.sleep(3)
+    r.check("13: Hopeless puts its hidden aura on (-15% damage)", stress(bot, p)["hopeless"], stress(bot, p)["raw"])
+    bot.probe("resolve %s -" % p)
+
+    # ...or a virtue, which drops stress to 50.
+    bot.probe("stressset virtue_chance 1")
+    bot.probe("stress %s 95" % p)
+    bot.probe("stress %s +10" % p)
+    s = stress(bot, p)
+    r.check("13: a virtue drops stress to 50", s["kind"] == "virtue" and s["stress"] == 50, s["raw"])
+    bot.probe("resolve %s focused" % p)
+    time.sleep(3)
+    r.check("13: Focused puts its hidden aura on (+10% crit)", stress(bot, p)["focused"], stress(bot, p)["raw"])
+    bot.probe("resolve %s -" % p)
+    bot.probe("stressset virtue_chance 0.25")
+
+    # On a mission.
+    for n in (p, q):
+        bot.probe("stress %s 0" % n)
+    for n in benched:
+        bot.probe("stress %s 30" % n)
+    if len(benched) == 2:
+        plain(bot, benched[1], neg="restless")
+    if not embark(bot, r, "13"):
+        return
+    time.sleep(4)
+    bot.probe("clear")
+    time.sleep(2)
+    bot.probe("heavyhit " + p)
+    r.check("13: a heavy hit adds 2 stress", stress(bot, p)["stress"] == 2, stress(bot, p)["raw"])
+    bot.probe("heavyhit " + p)
+    r.check("13: ...but not twice within 3 seconds", stress(bot, p)["stress"] == 2, stress(bot, p)["raw"])
+
+    bot.probe("down " + q)
+    time.sleep(2)
+    r.check("13: an ally going down adds 8 stress", stress(bot, p)["stress"] == 10, stress(bot, p)["raw"])
+    time.sleep(6)  # the fight-is-over rescue
+
+    bot.probe("stress %s 199" % p)
+    since = bot.mark()
+    bot.probe("stress %s +5" % p)
+    r.check("13: at 200 stress a heart attack sends them to death's door",
+            bot.wait_chat(p + "'s heart gives out", 5, since) is not None and bot.wait_chat(p + " is down", 4, since) is not None)
+    r.check("13: ...and stress drops to 150", stress(bot, p)["stress"] == 150, stress(bot, p)["raw"])
+    time.sleep(7)
+    heroes, raw = roster(bot)
+    r.check("13: ...saved by the fight ending, wounded", heroes[p]["alive"] and heroes[p]["wounded"], raw.get("list"))
+
+    # Stalwart (virtue): going down while wounded doesn't kill them.
+    bot.probe("resolve %s stalwart" % p)
+    since = bot.mark()
+    bot.probe("down " + p)
+    time.sleep(3)
+    fell = bot.wait_chat(p + " has fallen", 1, since) is not None
+    r.check("13: a Stalwart hero who goes down while wounded doesn't die for good", not fell
+            and roster(bot)[0][p]["status"] == "alive")
+    time.sleep(6)
+    q_before = stress(bot, q)["stress"]
+    since = bot.mark()
+    bot.cmd(".warband abandon")
+    wait_state(bot, lambda s: at_home(s) and s.get("mission") == "none", timeout=20)
+    time.sleep(1)
+    s = stress(bot, p)
+    r.check("13: a virtue ends with the mission", s["resolve"] == "none" and bot.wait_chat("is no longer Stalwart", 3, since)
+            is not None, s["raw"])
+    r.check("13: an abandoned Short mission adds 4 + 10 stress", stress(bot, q)["stress"] == q_before + 14,
+            f"{q_before} -> {stress(bot, q)['raw']}")
+    if benched:
+        r.check("13: sitting a mission out in the barracks takes 10 off", stress(bot, benched[0])["stress"] == 20,
+                stress(bot, benched[0])["raw"])
+    if len(benched) == 2:
+        r.check("13: ...but a Restless hero gains 8 instead", stress(bot, benched[1])["stress"] == 38,
+                stress(bot, benched[1])["raw"])
+    for n in alive[:4]:
+        bot.probe("stress %s 0" % n)
 
 
 # The plan -------------------------------------------------------------------------------------
@@ -574,22 +736,27 @@ def main(bot, r, only=None):
                 and num(s, "state") == 0, f"map={s.get('map')} mission={s.get('mission')} state={s.get('state')}")
         s = wait_state(bot, lambda s: s.get("botmaps") == str(HUB_MAP), timeout=12)
         r.check("6: the hero comes home too", s.get("botmaps") == str(HUB_MAP), f"botmaps={s.get('botmaps')}")
-        log = " ".join(bot.probe("log").values())
+        log = " ".join(bot.probe("log mission_done").values())  # one event: stress lines fill the log now
         r.check("6: mission completion is logged", "mission_done" in log, log)
         heroes, raw = roster(bot)
         r.check("6: the hero on the mission counts it", heroes[names[0]]["missions"] == 1
                 and heroes[names[2]]["missions"] == 0, raw.get("list"))
         s = state(bot)
         r.check("6: the commander gains about 1.5 levels (level 11)", num(s, "level") == 11, f"level={s.get('level')}")
-        log = " ".join(bot.probe("log").values())
+        log = " ".join(bot.probe("log reward").values())
         r.check("6: a completed Short mission pays 60 gold and 4 renown", "reward:done_gold=60_renown=4" in log, log)
-        h0 = heroes[names[0]]
-        r.check("6: the hero who went gains about 1.5 levels (level 11)", h0["level"] == 11, f"level={h0['level']}")
+        # A hero who was down when the boss died is carried home and paid a few seconds later.
+        end = time.time() + 12
+        while roster(bot)[0][names[0]]["level"] < 11 and time.time() < end:
+            time.sleep(2)
+        h0 = roster(bot)[0][names[0]]
+        r.check("6: the hero who went gains about 1.5 levels (level 11)", h0["level"] == 11,
+                f"level={h0['level']} alive={h0['alive']}")
         r.check("6: the hero spent the new talent points", h0["talents"] == 0, f"unspent={h0['talents']}")
         r.check("6: a hero who stayed home gains nothing (bench XP comes later)", heroes[names[2]]["level"] == 10)
         b = bot.probe("board")
         r.check("6: the main mission counts towards the gate", num(b, "progress") == 1, str(b))
-        r.check("6: the board deals new contracts after a mission", "board_dealt" in " ".join(bot.probe("log").values()))
+        r.check("6: the board deals new contracts after a mission", "board_dealt" in " ".join(bot.probe("log board_dealt").values()))
         recruits, raw = tavern(bot)
         r.check("6: a new batch of 4 recruits arrives", len(recruits) == 4, raw.get("list"))
         free = [x for x in recruits if x["cost"] == 0 and not x["founding"]]
@@ -620,7 +787,7 @@ def main(bot, r, only=None):
         s = wait_state(bot, lambda s: at_home(s) and s.get("mission") == "none", timeout=20)
         r.check("7: abandoning brings you home", at_home(s) and num(s, "state") == 0,
                 f"map={s.get('map')} mission={s.get('mission')} state={s.get('state')}")
-        log = " ".join(bot.probe("log").values())
+        log = " ".join(bot.probe("log mission_abandoned").values())
         r.check("7: abandoning is logged", "mission_abandoned" in log, log)
         after = bot.probe("xp")
         gain = (num(after, "xp") - num(before, "xp")) if num(after, "level") == num(before, "level") else -1
@@ -641,7 +808,7 @@ def main(bot, r, only=None):
         r.check("9: Edwin VanCleef found and killed", k.get("killed") == "1", str(k))
         r.check("9: beating the gate is announced", bot.wait_chat(r"The gate falls", 20, since) is not None)
         wait_state(bot, lambda s: at_home(s) and s.get("mission") == "none", timeout=30)
-        log = " ".join(bot.probe("log").values())
+        log = " ".join(bot.probe("log act_gate_beaten").values())
         r.check("9: beating the gate is logged", "act_gate_beaten" in log, log)
 
     # 10. Level cap ------------------------------------------------------------------------------
@@ -768,6 +935,10 @@ def main(bot, r, only=None):
     print("Test 12: traits")
     traits_test(bot, r)
 
+    # 13. Stress ---------------------------------------------------------------------------------
+    print("Test 13: stress")
+    stress_test(bot, r)
+
     # 8. Restart -------------------------------------------------------------------------------
     if restart:
         print("Test 8: restart mid-mission")
@@ -798,8 +969,10 @@ def main(bot, r, only=None):
                     and num(s, "state") == 1, f"mission={s.get('mission')} state={s.get('state')}")
             r.check("8: after a restart you're in the mission's dungeon", num(s, "map") == DEADMINES,
                     f"map={s.get('map')}")
-            s = wait_state(bot2, lambda s: s.get("botmaps") == str(DEADMINES), timeout=30)
-            r.check("8: after a restart the party hero comes back and joins you", s.get("botmaps") == str(DEADMINES),
+            # Every hero in the party (one or more) is back, in the dungeon.
+            back = lambda s: num(s, "bots") >= 1 and set(s.get("botmaps", "").split(",")) == {str(DEADMINES)}
+            s = wait_state(bot2, back, timeout=30)
+            r.check("8: after a restart the party heroes come back and join you", back(s),
                     f"bots={s.get('bots')} botmaps={s.get('botmaps')}")
             kill_boss(bot2)
             wait_state(bot2, lambda s: at_home(s) and s.get("mission") == "none", timeout=30)

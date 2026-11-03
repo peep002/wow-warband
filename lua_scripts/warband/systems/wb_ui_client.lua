@@ -13,7 +13,8 @@ local Handlers = AIO.AddHandlers("Warband", {})
 
 local W, H = 720, 500
 local LIST_W = 250
-local CARD_H = 74
+local CARD_H = 88
+local STORY_W = W - 36 - 40 - 64 - 170 -- a card's backstory line, beside one button
 local QUESTION = "Interface\\Icons\\INV_Misc_QuestionMark"
 local CLASS_TOKENS = { "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST", "DEATHKNIGHT", "SHAMAN", "MAGE",
                        "WARLOCK", nil, "DRUID" }
@@ -435,6 +436,30 @@ local function TraitButton(card)
     return b
 end
 
+local function StressTooltip(self)
+    local p = self.hero
+    if not p then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine(string.format("Stress %d / %d", p.stress, p.stressMax), 1, 0.82, 0)
+    GameTooltip:AddLine("Rises with heavy hits, allies going down, and every mission. At 100 their resolve is "
+        .. "tested; at 200 their heart gives out (on a mission). Sitting out a mission or a drink at the tavern brings it down.",
+        1, 1, 1, true)
+    if p.resolve then
+        local color = p.resolve.kind == "virtue" and { 0.25, 0.75, 1 } or { 1, 0.3, 0.3 }
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine(p.resolve.name .. (p.resolve.kind == "virtue" and " (virtue)" or " (affliction)"), unpack(color))
+        GameTooltip:AddLine(p.resolve.text, 1, 1, 1, true)
+        GameTooltip:AddLine(p.resolve.kind == "virtue" and "Lasts until the end of the mission."
+            or "Lasts until their stress is brought below 50.", 0.6, 0.6, 0.6, true)
+    end
+    GameTooltip:Show()
+end
+
+local function StressColor(s)
+    if s < 50 then return 0.3, 0.8, 0.3 elseif s < 100 then return 0.9, 0.8, 0.2
+    elseif s < 150 then return 1, 0.5, 0.1 else return 0.9, 0.15, 0.15 end
+end
+
 local function Card(page, i)
     local c = page.cards[i]
     if c then return c end
@@ -463,7 +488,7 @@ local function Card(page, i)
     c.bad:SetPoint("LEFT", c.good2, "RIGHT", 14, 0)
     c.story = Text(c, "GameFontDisableSmall")
     c.story:SetPoint("TOPLEFT", c.good, "BOTTOMLEFT", 0, -3)
-    c.story:SetWidth(W - 36 - 40 - 64 - 170)
+    c.story:SetWidth(STORY_W)
     c.status = Text(c, "GameFontHighlightSmall")
     c.status:SetPoint("TOPRIGHT", -12, -10)
     c.status:SetJustifyH("RIGHT")
@@ -471,9 +496,29 @@ local function Card(page, i)
     c.button:SetSize(140, 24)
     c.button:SetPoint("BOTTOMRIGHT", -10, 10)
     c.button2 = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
-    c.button2:SetSize(140, 24)
+    c.button2:SetSize(130, 24)
     c.button2:SetPoint("RIGHT", c.button, "LEFT", -6, 0)
     c.button2:Hide()
+    c.button3 = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
+    c.button3:SetSize(130, 24)
+    c.button3:Hide()
+    -- Stress: a bar (0-200) above the buttons, the affliction or virtue to its left; hover for details.
+    c.stress = CreateFrame("StatusBar", nil, c)
+    c.stress:SetSize(140, 11)
+    c.stress:SetPoint("BOTTOMRIGHT", -10, 38)
+    c.stress:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    c.stress:SetMinMaxValues(0, 200)
+    local bg = c.stress:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetTexture(0, 0, 0, 0.6)
+    c.stress.value = Text(c.stress, "GameFontHighlightSmall")
+    c.stress.value:SetPoint("CENTER", 0, 0)
+    c.stress.label = Text(c, "GameFontNormalSmall")
+    c.stress.label:SetPoint("RIGHT", c.stress, "LEFT", -6, 0)
+    c.stress:EnableMouse(true)
+    c.stress:SetScript("OnEnter", StressTooltip)
+    c.stress:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    c.stress:Hide()
     page.cards[i] = c
     return c
 end
@@ -502,7 +547,26 @@ local function FillCard(c, p)
     if not p.good2 then c.good2:SetWidth(1) end -- keeps the bad trait close when there's one good one
     FillTrait(c.bad, p.bad, "-", { 1, 0.35, 0.3 })
     c.story:SetText(p.backstory or "")
+    c.story:SetHeight(12) -- one line; a long one ends in "..."
+    c.story:SetWidth(STORY_W)
     c.button2:Hide()
+    c.button3:Hide()
+    c.stress:Hide()
+    c.stress.label:SetText("")
+end
+
+local function FillStress(c, p)
+    c.stress.hero = p
+    c.stress:SetMinMaxValues(0, p.stressMax)
+    c.stress:SetValue(p.stress)
+    c.stress:SetStatusBarColor(StressColor(p.stress))
+    c.stress.value:SetText(p.stress)
+    if p.resolve then
+        c.stress.label:SetText((p.resolve.kind == "virtue" and "|cff40c0ff" or "|cffff4040") .. p.resolve.name .. "|r")
+    else
+        c.stress.label:SetText("|cffa0a0a0Stress|r")
+    end
+    c.stress:Show()
 end
 
 local function Place(page, count, emptyText)
@@ -529,15 +593,30 @@ local function DrawRoster()
         FillCard(c, h)
         local alive = h.status == "alive"
         c.status:SetText((alive and (h.inParty and "|cff33ff33In your party|r" or "|cffa0a0a0In the barracks|r")
-            or ("|cffff3333" .. Cap(h.status) .. "|r")) .. (h.wounded and "\n|cffff3333Wounded (-10% health)|r" or "")
-            .. "\n|cffa0a0a0" .. h.missions .. " missions|r")
+            or ("|cffff3333" .. Cap(h.status) .. "|r")) .. "|cffa0a0a0  -  " .. h.missions .. " missions|r"
+            .. (h.wounded and "\n|cffff3333Wounded (-10% health)|r" or ""))
+        local nextTo = c.button -- the extra buttons line up leftwards from the main one
         if alive and h.wounded then
-            c.button2:SetText(string.format("Treat (%d gold)", h.treatCost))
+            c.button2:SetText(string.format("Treat (%d g)", h.treatCost))
             local guid = h.guid
             c.button2:SetScript("OnClick", function() AIO.Handle("Warband", "Treat", guid) end)
             if data.onMission or data.gold < h.treatCost then c.button2:Disable() else c.button2:Enable() end
             c.button2:Show()
+            nextTo = c.button2
         end
+        if alive then FillStress(c, h) end
+        if alive and h.stress > 0 then
+            c.button3:ClearAllPoints()
+            c.button3:SetPoint("RIGHT", nextTo, "LEFT", -6, 0)
+            c.button3:SetText(string.format("Drink -%d (%d g)", h.drinkAmount, h.drinkCost))
+            local guid = h.guid
+            c.button3:SetScript("OnClick", function() AIO.Handle("Warband", "Drink", guid) end)
+            if data.onMission or data.gold < h.drinkCost then c.button3:Disable() else c.button3:Enable() end
+            c.button3:Show()
+        end
+        -- Every extra button takes its width from the backstory line, so they never overlap.
+        local extra = (c.button2:IsShown() and 136 or 0) + (c.button3:IsShown() and 136 or 0)
+        c.story:SetWidth(STORY_W - extra)
         if not alive then
             c.button:Hide()
         else

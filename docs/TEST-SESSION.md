@@ -58,8 +58,15 @@ steps, so results can be recorded there.
     "(Hothead)", "(Selfless)", "(Field Medic)", "(Greedy)". [7.2] To force one:
     `.wbdev trait HERO neg coward` (or `pos selfless`, etc.). [7.3]
 
+## Stress (phase 8), between and after missions
+23. Roster tab: each hero has a stress bar; hover it. After a mission, those who went are higher and
+    those who stayed home lower. [8.1, 8.2]
+24. Click a hero's **Drink** button: stress drops by 40 for some gold. [8.3]
+25. Optional (GM): `.wbdev stress HERO 95` then `.wbdev stress HERO +10` for a resolve check. [8.4]
+
 ## What to tell me
 - Anything broken, and anything confusing in the window.
 - Whether dying feels fair (45 seconds, the "fight is over" rescue).
 - Whether gold feels too tight or too loose.
 - Whether traits show up often enough, and whether Clumsy or Hothead feel unfair.
+- Whether stress climbs too fast or too slow, and whether drinks cost too much or too little.

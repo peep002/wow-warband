@@ -51,6 +51,16 @@ function Death.DownedIn(commander)
     return list
 end
 
+-- Other systems: fn(commander, unit) when someone in the party goes down (wb_stress); and guards,
+-- fn(commander, h) returning true when a hero can't die for good right now (a Stalwart virtue).
+local downHandlers, guards = {}, {}
+function Death.OnDown(fn) downHandlers[#downHandlers + 1] = fn end
+function Death.Guard(fn) guards[#guards + 1] = fn end
+local function Spared(commander, h)
+    for _, fn in ipairs(guards) do if h and fn(commander, h) then return true end end
+    return false
+end
+
 local function Revive(unit, health)
     allowNow[unit:GetGUIDLow()] = true
     unit:ResurrectPlayer(health)
@@ -82,7 +92,8 @@ local function OnDown(commander, unit)
     local isCommander = unit == commander
     local h = not isCommander and Roster.Get(commander, guid)
     local place, key = MissionPlace(commander)
-    if h and h.wounded then
+    for _, fn in ipairs(downHandlers) do fn(commander, unit) end
+    if h and h.wounded and not Spared(commander, h) then
         downed[guid] = nil
         Roster.Kill(commander, guid, string.format("Fell again in %s while still wounded.", place), key)
         return
@@ -146,7 +157,7 @@ local function FailMission(commander, wipe)
         if d.commander == commander:GetGUIDLow() and guid ~= commander:GetGUIDLow() then
             downed[guid] = nil
             local hero = GetPlayerByGUID(GetPlayerGUID(guid))
-            if wipe then
+            if wipe and not Spared(commander, Roster.Get(commander, guid)) then
                 Roster.Kill(commander, guid, string.format("Lost when the warband was wiped out in %s.", place), key)
             elseif hero then
                 Revive(hero, D.revive_health) -- carried home by the survivors
@@ -195,9 +206,13 @@ local function Check(commander)
     for guid, d in pairs(downed) do
         if d.commander == cguid and now - d.at >= D.bleed_seconds then
             if guid == cguid then return FailMission(commander, false) end
-            downed[guid] = nil
-            local place, key = MissionPlace(commander)
-            Roster.Kill(commander, guid, string.format("Bled out in %s.", place), key)
+            if Spared(commander, Roster.Get(commander, guid)) then
+                d.at = now -- holds on: the clock starts again, and the fight's end can still save them
+            else
+                downed[guid] = nil
+                local place, key = MissionPlace(commander)
+                Roster.Kill(commander, guid, string.format("Bled out in %s.", place), key)
+            end
         end
     end
 

@@ -22,6 +22,7 @@
 --   Roster.Add(player, fields)     put a newly hired character on the roster (wb_tavern)
 --   Roster.HeroAccount()           the hero account's id
 --   Roster.OnChange(fn)            fn(player) when the roster changes
+--   Roster.Save(h, fields) / Roster.Touch(player)   save hero fields / redraw (other systems)
 --
 -- Use from other files:  local Roster = require("wb_roster")
 
@@ -72,7 +73,7 @@ end
 
 local COLUMNS = "h.`guid`, c.`name`, c.`class`, c.`race`, c.`level`, h.`spec_no`, h.`role`, h.`trait_pos`, "
     .. "h.`trait_neg`, h.`backstory`, h.`status`, h.`in_party`, h.`set_up`, h.`start_level`, h.`missions`, h.`wounded`, "
-    .. "h.`trait_pos2`, h.`gear_quality`"
+    .. "h.`trait_pos2`, h.`gear_quality`, h.`stress`, h.`resolve`, h.`resolve_left`"
 
 local function ReadHero(q)
     return { guid = q:GetUInt32(0), name = q:GetString(1), class = q:GetUInt32(2), race = q:GetUInt32(3),
@@ -80,7 +81,8 @@ local function ReadHero(q)
              trait_neg = q:GetString(8), backstory = q:GetString(9), status = q:GetString(10),
              in_party = q:GetUInt32(11) == 1, set_up = q:GetUInt32(12) == 1, start_level = q:GetUInt32(13),
              missions = q:GetUInt32(14), wounded = q:GetUInt32(15) == 1, trait_pos2 = q:GetString(16),
-             gear_quality = q:GetUInt32(17) }
+             gear_quality = q:GetUInt32(17), stress = q:GetUInt32(18), resolve = q:GetString(19),
+             resolve_left = q:GetUInt32(20) }
 end
 
 -- Wounds -------------------------------------------------------------------------------------------
@@ -129,6 +131,8 @@ local function Save(h, fields)
     end
     CharDBExecute("UPDATE `warband_heroes` SET " .. table.concat(sets, ", ") .. " WHERE `guid` = " .. h.guid)
 end
+Roster.Save = Save       -- (h, { "field", ... }) for other systems' hero fields (wb_stress)
+Roster.Touch = function(player) Changed(player) end -- tell the window the roster changed
 
 function Roster.List(player)
     local list = {}

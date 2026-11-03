@@ -102,10 +102,13 @@ local function Finish(player, status)
     -- Experience for everyone who went; heroes who came home from a completed mission count it.
     local worth = m.def.xp * (status == "done" and 1 or (status == "failed" and Config.xp.failed or Config.xp.abandoned))
     local gained = { player:GetName() .. " +" .. XP.Grant(player, worth) }
+    local carried = {}
     for _, hero in ipairs(Roster.PartyHeroes(player)) do
         local h = Roster.Get(player, hero:GetGUIDLow())
         if hero:IsAlive() and h and h.status == "alive" then
             gained[#gained + 1] = hero:GetName() .. " +" .. XP.Grant(hero, worth)
+        elseif h and h.status == "alive" and status ~= "failed" then
+            carried[#carried + 1] = hero:GetGUID() -- down at the end: carried home (wb_death), paid there
         end
         if status == "done" and h and h.status == "alive" then
             CharDBExecute("UPDATE `warband_heroes` SET `missions` = `missions` + 1 WHERE `guid` = " .. hero:GetGUIDLow())
@@ -114,6 +117,24 @@ local function Finish(player, status)
     end
     player:SendBroadcastMessage(string.format("|cffffd100[Warband]|r Experience: about %.1f levels' worth each (%s).",
         worth, table.concat(gained, ", ")))
+    -- A dead character can't gain experience, so heroes who were down at the end get theirs once
+    -- they're back on their feet at home (wb_death revives them about 4 seconds after arriving).
+    if #carried > 0 then
+        local pguid = player:GetGUID()
+        CreateLuaEvent(Log.Safe("carried xp", function()
+            local p = GetPlayerByGUID(pguid)
+            for _, hguid in ipairs(carried) do
+                local hero = GetPlayerByGUID(hguid)
+                if hero and hero:IsAlive() then
+                    local got = XP.Grant(hero, worth)
+                    if p then
+                        p:SendBroadcastMessage(string.format("|cffffd100[Warband]|r Experience: %s +%s (carried home).",
+                            hero:GetName(), got))
+                    end
+                end
+            end
+        end), 7000, 1)
+    end
     if c and status == "done" then
         if m.def.kind == "main" then
             c.progress = c.progress + 1

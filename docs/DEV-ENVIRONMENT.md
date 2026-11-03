@@ -116,6 +116,8 @@ Stop worldserver with `server shutdown 1` at `AC>`; Ctrl+C stops authserver.
 | `sql/updates/003_tavern_npc.sql` | warband_world | 2026-11-01 | delete 9100001 from `creature`, `creature_template`, `creature_template_model`, `npc_text` |
 | `sql/base/007_traits.sql` | warband_characters | 2026-11-01 | drop column `pocket` from `warband_armory` (pocketed items would show up in the armory) |
 | `sql/updates/004_trait_spells.sql` (restart after) | warband_world | 2026-11-01 | `DELETE FROM spell_dbc WHERE ID BETWEEN 102000 AND 102099` |
+| `sql/base/008_stress.sql` | warband_characters | 2026-11-01 | drop columns `stress`, `resolve`, `resolve_left` from `warband_heroes` (forgets all stress) |
+| `sql/updates/005_stress_spells.sql` (restart after) | warband_world | 2026-11-01 | `DELETE FROM spell_dbc WHERE ID BETWEEN 102010 AND 102019` |
 
 Apply with: `& "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" -u acore -pacore <database> -e "source sql/...sql"`
 (from this project folder). Creature changes need a worldserver restart.
@@ -132,3 +134,7 @@ Apply with: `& "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" -u acore 
 - Gotchas: a level-10 test commander dies fast, and dead players can't talk to NPCs, so the bot
   uses `.cheat god on`. Talking to an NPC needs about 5 yards; `.wbdev gonpc ENTRY` jumps next to
   it. After reconnecting, list characters before entering the world.
+- If `ServerLauncher.exe --stop warband` says "The worldserver didn't stop by itself" (seen
+  2026-11-01: its Ctrl+C didn't reach a worldserver it had started from a script), stop it cleanly
+  with `python tools/wb_testbot.py shutdown` (a GM test character types `.server shutdown 1`), then
+  run `--stop warband` again to close the authserver, and `--start warband`.

@@ -34,6 +34,8 @@
 --   .wbdev attackers NAME|me   who hits them and whom those hit;  .wbdev near NAME|me RANGE  monsters fighting
 --   .wbdev calm         kill the monsters that are fighting (idle ones stay, unlike clear)
 --   .wbdev traitset KEY FIELD VALUE   change a trait's number, e.g. "clumsy chance 1" (until .reload ale)
+--   .wbdev stress NAME [N|+N|-N]   read/set/change stress;  .wbdev resolve NAME KEY|-   set an affliction/virtue
+--   .wbdev stressset FIELD VALUE   change a Config.stress number;  .wbdev heavyhit NAME   a simulated heavy hit
 
 local Config   = require("wb_config")
 local Company  = require("wb_company")
@@ -400,6 +402,57 @@ function probes.traitset(player, arg)
     if not e or type(e) ~= "table" or e[field] == nil then return Out(player, "set=none") end
     e[field] = tonumber(value)
     Out(player, "set=" .. e[field])
+end
+
+-- Stress (phase 8) ----------------------------------------------------------------------------------
+
+-- ".wbdev stress NAME [N|+N|-N]": read a hero's stress (and resolve); N sets it straight (no resolve
+-- check), +N / -N go through the real Stress.Add (Brave, resolve checks, heart attacks...).
+function probes.stress(player, arg)
+    local name, how, n = arg:match("^(%S+)%s*([%+%-]?)(%d*)$")
+    local h = HeroOf(player, name)
+    if not h then return Out(player, "stress=none") end
+    local Stress = require("wb_stress")
+    if n ~= "" then
+        if how == "" then
+            h.stress = tonumber(n)
+            require("wb_roster").Save(h, { "stress" })
+        else
+            Stress.Add(player, h, (how == "-" and -1 or 1) * tonumber(n), "probe")
+        end
+    end
+    local r = Stress.Resolve(h)
+    local unit = GetPlayerByGUID(GetPlayerGUID(h.guid))
+    local A = Config.stress.auras
+    Out(player, string.format("stress=%d resolve=%s kind=%s left=%d hopeless=%d focused=%d alive=%d", h.stress,
+        h.resolve ~= "" and h.resolve or "none", r and r.kind or "none", h.resolve_left,
+        (unit and unit:HasAura(A.hopeless)) and 1 or 0, (unit and unit:HasAura(A.focused)) and 1 or 0,
+        (unit and unit:IsAlive()) and 1 or 0))
+end
+
+-- ".wbdev resolve NAME KEY|-": give a hero an affliction or virtue (or clear it)
+function probes.resolve(player, arg)
+    local name, key = arg:match("^(%S+)%s+(%S+)$")
+    local h = HeroOf(player, name)
+    if not h or (key ~= "-" and not Config.resolves[key]) then return Out(player, "resolve=0") end
+    require("wb_stress").SetResolve(player, h, key == "-" and "" or key)
+    Out(player, "resolve=1")
+end
+
+-- ".wbdev stressset FIELD VALUE": change a Config.stress number until the next .reload ale (tests)
+function probes.stressset(player, arg)
+    local field, value = arg:match("^(%S+)%s+([%d%.]+)$")
+    if not field or type(Config.stress[field]) ~= "number" then return Out(player, "set=none") end
+    Config.stress[field] = tonumber(value)
+    Out(player, "set=" .. Config.stress[field])
+end
+
+-- ".wbdev heavyhit NAME": a hit for half their health goes through the heavy-hit check (not dealt)
+function probes.heavyhit(player, arg)
+    local unit = Who(player, arg)
+    if not unit then return Out(player, "heavyhit=none") end
+    local counted = require("wb_stress").OnHeavyHit(unit, math.floor(unit:GetMaxHealth() / 2))
+    Out(player, "heavyhit=" .. (counted and 1 or 0))
 end
 
 RegisterPlayerEvent(PLAYER_EVENT_ON_COMMAND, function(event, player, command)

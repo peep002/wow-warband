@@ -18,6 +18,8 @@
 --   Traits.Pocket(commander)         a Greedy hero in the party who pockets this drop, or nil
 --   Traits.Pull(commander, unit, range)  make the nearest idle pack attack unit (returns it, or nil)
 --   Traits.State(guid)               "coward,selfless,..." used this fight (tests)
+--   Traits.Panic(commander, unit, us, key, below, label)   run in a panic (Coward, Fearful)
+--   Traits.OnFightEnd(fn) / Traits.OnHeroTick(fn)          per-fight hooks for other systems
 --
 -- Use from other files:  local Traits = require("wb_traits")
 
@@ -33,6 +35,13 @@ local E = Config.trait_effects
 
 local used = {}   -- [hero guid] = { coward = true, ... }: used up until the fight ends
 local fights = {} -- [commander guid] = { on = in a fight?, clumsy = { guid, at }, hothead = { guid, at } }
+
+-- Other systems that act per fight (wb_stress): fn(commander, heroes) when a fight ends, and
+-- fn(commander, x, us, party) for every living party hero on every mission tick (x = { unit, h },
+-- us = that hero's "used this fight" table).
+local fightEndHandlers, tickHandlers = {}, {}
+function Traits.OnFightEnd(fn) fightEndHandlers[#fightEndHandlers + 1] = fn end
+function Traits.OnHeroTick(fn) tickHandlers[#tickHandlers + 1] = fn end
 
 function Traits.Has(h, key)
     return h ~= nil and (h.trait_pos == key or h.trait_pos2 == key or h.trait_neg == key)
@@ -59,11 +68,16 @@ end
 
 -- Hidden auras -------------------------------------------------------------------------------------
 -- Auras vanish on death and logout, so they're checked every tick, everywhere (also in the hamlet).
+-- Afflictions and virtues with an aura (Hopeless, Focused; wb_stress) are kept the same way.
 local function KeepAuras(commander)
+    local S = Config.stress.auras
     for _, x in ipairs(Heroes(commander)) do
         if x.unit:IsAlive() then
-            for key, spell in pairs(E.auras) do
-                local want, has = Traits.Has(x.h, key), x.unit:HasAura(spell)
+            local wanted = {}
+            for key, spell in pairs(E.auras) do wanted[spell] = Traits.Has(x.h, key) end
+            for key, spell in pairs(S) do wanted[spell] = x.h.resolve == key end
+            for spell, want in pairs(wanted) do
+                local has = x.unit:HasAura(spell)
                 if want and not has then
                     x.unit:AddAura(spell, x.unit)
                 elseif has and not want then
@@ -118,12 +132,14 @@ end
 
 -- The per-fight traits ------------------------------------------------------------------------------
 
-local function Coward(commander, unit, us)
-    if us.coward or not unit:IsInCombat() or unit:GetHealthPct() >= E.coward.below then return end
-    us.coward = true
+-- In a fight and below `below`% health: runs in a panic for a few seconds, once per fight (us[key]).
+-- Used by Coward here and by the Fearful affliction (wb_stress).
+function Traits.Panic(commander, unit, us, key, below, label)
+    if us[key] or not unit:IsInCombat() or unit:GetHealthPct() >= below then return end
+    us[key] = true
     unit:SetFeared(true)
-    Tell(commander, string.format("|cffff8020[Warband] %s panics and runs!|r (Coward)", unit:GetName()))
-    Log.Event(commander:GetGUIDLow(), "trait_coward", unit:GetName())
+    Tell(commander, string.format("|cffff8020[Warband] %s panics and runs!|r (%s)", unit:GetName(), label))
+    Log.Event(commander:GetGUIDLow(), "panic_" .. key, unit:GetName())
     local guid = unit:GetGUID()
     CreateLuaEvent(function()
         local u = GetPlayerByGUID(guid)
@@ -191,6 +207,7 @@ local function Check(commander)
         f.on, f.clumsy = false, nil
         for _, x in ipairs(heroes) do used[x.h.guid] = nil end
         f.hothead = RollFor(commander, "hothead", E.hothead.chance, E.hothead.after)
+        for _, fn in ipairs(fightEndHandlers) do fn(commander, heroes) end
     end
 
     local now = os.time()
@@ -209,18 +226,25 @@ local function Check(commander)
         if x.unit:IsAlive() then
             local us = used[x.h.guid] or {}
             used[x.h.guid] = us
-            if Traits.Has(x.h, "coward") then Coward(commander, x.unit, us) end
+            if Traits.Has(x.h, "coward") then Traits.Panic(commander, x.unit, us, "coward", E.coward.below, "Coward") end
             if Traits.Has(x.h, "selfless") then Selfless(commander, x.unit, us, party) end
             if Traits.Has(x.h, "field_medic") then FieldMedic(commander, x.unit, us) end
+            for _, fn in ipairs(tickHandlers) do fn(commander, x, us, party) end
         end
     end
 end
 
--- Greedy: called by the armory for each item it's about to store. Returns the hero's guid and name.
+-- Greedy (trait) and Selfish (affliction, wb_stress): called by the armory for each item it's about
+-- to store. Returns the hero's guid, name and why ("Greedy"/"Selfish"), or nil.
 function Traits.Pocket(commander)
     for _, x in ipairs(Heroes(commander)) do
-        if Traits.Has(x.h, "greedy") and x.unit:IsAlive() and math.random() < E.greedy.chance then
-            return x.h.guid, x.unit:GetName()
+        if x.unit:IsAlive() then
+            if Traits.Has(x.h, "greedy") and math.random() < E.greedy.chance then
+                return x.h.guid, x.unit:GetName(), "Greedy"
+            end
+            if x.h.resolve == "selfish" and math.random() < Config.stress.selfish_chance then
+                return x.h.guid, x.unit:GetName(), "Selfish"
+            end
         end
     end
 end

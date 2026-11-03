@@ -18,6 +18,7 @@
 --   Armory.EquipAll(player)                 returns ok, message
 --   Armory.Upgrades(player)                 { [item id] = { { guid =, name =, gain = 0.12 }, ... } }
 --   Armory.Sell(player, id) / Armory.Salvage(player, id) / Armory.SellJunk(player)
+--   Armory.Unpocket(commander, heroGuid, heroName, how)   hand back what a hero pocketed
 --
 -- Use from other files:  local Armory = require("wb_armory")
 
@@ -173,15 +174,15 @@ local function OnLoot(event, player, item, count)
     local name = item:GetName()
     local commander = GetPlayerByGUID(GetPlayerGUID(cguid))
     -- Greedy heroes: a chance per item that one of them keeps it (only worth it for real gear).
-    local pocket, pocketName
+    local pocket, pocketName, why
     if commander and (item:GetClass() == ITEM_CLASS_WEAPON or item:GetClass() == ITEM_CLASS_ARMOR) then
-        pocket, pocketName = require("wb_traits").Pocket(commander)
+        pocket, pocketName, why = require("wb_traits").Pocket(commander)
     end
     local result = TakeIntoArmory(cguid, player, item, count, pocket)
     if commander and result then
         if result == "pocketed" then
-            commander:SendBroadcastMessage(string.format("|cffff8020[Warband] %s pockets %s|r instead of handing it in. (Greedy)",
-                pocketName, name))
+            commander:SendBroadcastMessage(string.format("|cffff8020[Warband] %s pockets %s|r instead of handing it in. (%s)",
+                pocketName, name, why))
         else
             commander:SendBroadcastMessage(string.format("|cffffd100[Warband]|r %s %s.", name, SAYS[result]))
         end
@@ -205,18 +206,25 @@ local function Keep(item)
     local t = Template(item:GetEntry())
     return t and t.quality >= 2
 end
-Roster.OnKilled(function(commander, bot)
-    -- What a Greedy hero pocketed turns up in their things.
+-- What a hero pocketed (Greedy, Selfish) goes back into the armory. Returns how many items.
+function Armory.Unpocket(commander, heroGuid, heroName, how)
     local q = CharDBQuery(string.format("SELECT COUNT(*) FROM `warband_armory` WHERE `company` = %d AND `pocket` = %d",
-        commander:GetGUIDLow(), bot:GetGUIDLow()))
+        commander:GetGUIDLow(), heroGuid))
     local found = q and q:GetUInt32(0) or 0
     if found > 0 then
         CharDBQuery(string.format("UPDATE `warband_armory` SET `pocket` = 0 WHERE `company` = %d AND `pocket` = %d",
-            commander:GetGUIDLow(), bot:GetGUIDLow()))
-        commander:SendBroadcastMessage(string.format("|cffffd100[Warband]|r Among %s's things: %d pocketed item%s, back in the armory.",
-            bot:GetName(), found, found == 1 and "" or "s"))
-        Log.Event(commander:GetGUIDLow(), "armory_unpocketed", bot:GetName() .. " " .. found)
+            commander:GetGUIDLow(), heroGuid))
+        commander:SendBroadcastMessage(string.format("|cffffd100[Warband]|r %s %d pocketed item%s, back in the armory.",
+            string.format(how, heroName), found, found == 1 and "" or "s"))
+        Log.Event(commander:GetGUIDLow(), "armory_unpocketed", heroName .. " " .. found)
+        Changed(commander)
     end
+    return found
+end
+
+Roster.OnKilled(function(commander, bot)
+    -- What a Greedy or Selfish hero pocketed turns up in their things.
+    Armory.Unpocket(commander, bot:GetGUIDLow(), bot:GetName(), "Among %s's things:")
     for bag = 255, 255 do -- the backpack (bags 19-22 too)
         for slot = 23, 38 do
             local item = bot:GetItemByPos(bag, slot)

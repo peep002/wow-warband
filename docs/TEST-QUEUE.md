@@ -1,6 +1,6 @@
 # In-game tests waiting for the owner
 
-Tests the bot can't do (it can't see windows, walk or fight). `docs/TEST-SESSION.md` has tests 2-6 as one
+Tests the bot can't do (it can't see windows, walk or fight). `docs/TEST-SESSION.md` has tests 2-8 as one
 ordered walkthrough for a sitting; keep both in step when adding tests. Do them in one sitting when you're at
 the gaming PC, then report back what you saw. Results get recorded at the bottom of each test.
 
@@ -197,5 +197,33 @@ have to wait for a lucky roll. `HERO` = one of your heroes' names.
 
 Tell me whether the traits show up often enough to notice, whether any feels unfair (Clumsy and
 Hothead can be rough), and whether a hero ever got stuck running or fighting the wrong thing.
+
+**Result:** (waiting)
+
+## Test 8: stress (phase 8)
+
+Heroes now get stressed (you don't). `HERO` = one of your heroes' names.
+
+1. **Roster** tab: every hero card has a small **stress bar** above the buttons (0 to 200, green when
+   low, red when high). Hover it.
+   - **Expect:** a tooltip explaining stress. A new hero starts at 0.
+2. Play a mission and come home. Open the Roster again.
+   - **Expect:** heroes who went have more stress (about 4 for a Short contract, more if someone went
+     down or they took big hits). Heroes who stayed in the barracks have 10 less (a **Restless** one
+     has 8 more instead).
+3. A hero with stress gets a **Drink** button ("Drink -40 (N g)"). Click it in the hamlet.
+   - **Expect:** "HERO drinks at the tavern: stress X -> Y (N gold)", and the bar drops.
+   - Typing `.warband drink HERO` does the same.
+4. Optional, to see a resolve check without playing ten missions (GM): `.wbdev stress HERO 95`, then
+   `.wbdev stress HERO +10`.
+   - **Expect:** "HERO's resolve is tested... PARANOID." (red, an affliction; or blue, a virtue about 1
+     time in 4). The card shows the name next to the bar; hover the bar for what it does.
+   - Drinks until stress is below 50: "HERO is no longer Paranoid."
+5. Optional (GM, on a mission): `.wbdev stress HERO 199`, then `.wbdev stress HERO +5`.
+   - **Expect:** "HERO's heart gives out under the strain!" and they go down (death's door). If they
+     were already wounded, they die for good, so pick someone you don't mind losing.
+
+Tell me whether stress climbs too fast or too slow over a few real missions, whether drinks are too
+cheap or too dear, and whether the stress bar and its tooltip are clear.
 
 **Result:** (waiting)
