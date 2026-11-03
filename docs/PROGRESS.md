@@ -310,7 +310,7 @@ dungeon (in-game test passed 2026-11-01).
 | 2026-11-01 | **Stalwart Shield** = +10% threat only | "Never loses aggro to a single crit" is what extra threat does; there's no separate crit rule to hook |
 | 2026-11-01 | **Greedy**'s pocketed items come back to the armory when that hero dies for good | Same as their bag gear; the loss stings but isn't forever |
 | 2026-11-01 | Glass Jaw covers melee and ranged crits, not spell crits | The server has no working "spell crit damage taken" aura; most dungeon damage is melee |
-| 2026-11-01 | **The commander has no stress** (check with owner) | The design gives stress to heroes; afflictions on the player's own character would take control away from them |
+| 2026-11-01 | **The commander has no stress**; heroes only (owner confirmed 2026-11-02) | The design gives stress to heroes; afflictions on the player's own character would take control away from them |
 | 2026-11-01 | Stress numbers (table in phase 8) are first guesses, all in `Config.stress` | The design names the sources but not the amounts; tune after playing |
 | 2026-11-01 | "Taking crits" counts as **heavy hits**: one blow for 12%+ of max health | The server doesn't tell scripts which hits were crits |
 | 2026-11-01 | **Paranoid** refuses half the heals from others, not all | Refusing every heal would make a Paranoid tank certain to die for good |
